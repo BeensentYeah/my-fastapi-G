@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>League of Legends Item Finder</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+
+<body>
+
+    <header>
+
+        <h1>⚔️ League of Legends Item Finder</h1>
+
+        <p>A website powered by a REST API</p>
+
+    </header>
+
+
+    <main>
+
+
+        <section class="search">
+
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="Search for an item..."
+            >
+
+            <button onclick="searchItems()">
+                Search
+            </button>
+
+            <button class="secondary" onclick="loadItems()">
+                Show All
+            </button>
+
+        </section>
+
+
+        <section>
+
+            <h2>League of Legends Items</h2>
+
+            <div id="itemList" class="item-list">
+
+                Loading items...
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <p>Data provided by the League of Legends Item API</p>
+
+    </footer>
+
+
+    <script src="app.js"></script>
+
+</body>
+
+</html>
