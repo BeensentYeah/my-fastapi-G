@@ -1,4 +1,4 @@
-const API_URL = "https://YOUR-API.vercel.app";
+const API_URL = "https://my-fastapi-g.vercel.app/";
 
 
 async function loadItems() {
