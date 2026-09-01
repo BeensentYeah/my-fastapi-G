@@ -103,22 +103,6 @@ def get_items():
 
 
 
-# GET ONE ITEM
-
-
-@app.get("/items/{item_id}")
-def get_item(item_id: int):
-
-    for item in items:
-        if item["id"] == item_id:
-            return item
-
-    raise HTTPException(
-        status_code=404,
-        detail="Item not found."
-    )
-
-
 
 # SEARCH ITEMS
 
@@ -150,3 +134,20 @@ def search_items(q: str = Query(..., min_length=1)):
         "count": len(results),
         "results": results
     }
+
+
+
+# GET ONE ITEM
+
+
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+
+    for item in items:
+        if item["id"] == item_id:
+            return item
+
+    raise HTTPException(
+        status_code=404,
+        detail="Item not found."
+    )
