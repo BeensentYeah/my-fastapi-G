@@ -1,11 +1,11 @@
 const API_URL = "https://my-fastapi-g.vercel.app";
 
+// LOAD ALL ITEMS
 async function loadItems() {
     try {
         const response = await fetch(`${API_URL}/items`);
         const data = await response.json();
         
-        // Pass data.items or fallback to an empty array
         displayItems(data.items || []);
     } catch (error) {
         console.error(error);
@@ -13,11 +13,11 @@ async function loadItems() {
     }
 }
 
+// RENDER ITEM CARDS IN GRID
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     itemList.innerHTML = "";
 
-    // Safety check if items is not an array
     if (!Array.isArray(items) || items.length === 0) {
         itemList.innerHTML = "<p>No items found.</p>";
         return;
@@ -27,7 +27,6 @@ function displayItems(items = []) {
         const card = document.createElement("div");
         card.className = "item-card";
 
-        // Wrapped viewItem dynamic string in quotes to prevent syntax errors on string IDs
         card.innerHTML = `
             <div class="item-price">${item.price} Gold</div>
             <h3>${item.name}</h3>
@@ -41,63 +40,21 @@ function displayItems(items = []) {
     });
 }
 
-async function viewItem(id) {
-    try {
-        const response = await fetch(`${API_URL}/items/${id}`);
-        const item = await response.json();
-
-        alert(`
-${item.name}
-
-Price: ${item.price} Gold
-Category: ${item.category}
-Attack Damage: ${item.attackDamage}
-Ability Power: ${item.abilityPower}
-Attack Speed: ${item.attackSpeed}%
-
-Description: ${item.description}
-        `);
-    } catch (error) {
-        console.error(error);
-        alert("Unable to retrieve item.");
-    }
-}
-
-async function searchItems() {
-    const query = document.getElementById("searchInput").value;
-
-    if (!query) {
-        loadItems();
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-
-        // Pass data.results or fallback to an empty array
-        displayItems(data.results || []);
-    } catch (error) {
-        console.error(error);
-        alert("Search failed.");
-    }
-}
-
-// --- DEBOUNCE TIMER & FUNCTION ADDED HERE ---
+// DEBOUNCE TIMER & HANDLER (Triggers instant search after 300ms pause)
 let debounceTimer;
 
 function debouncedSearch() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
         searchItems();
-    }, 300); // 300ms delay after typing stops
+    }, 300);
 }
 
-// --- UPDATED SEARCH FUNCTION ---
+// SEARCH FUNCTION
 async function searchItems() {
     const query = document.getElementById("searchInput").value.trim();
 
-    // If text box is empty, load all items immediately
+    // If input is empty, reset grid to show all items
     if (!query) {
         loadItems();
         return;
@@ -106,7 +63,7 @@ async function searchItems() {
     try {
         const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
         
-        // Handle cases where API returns non-200 (like 422 for short query)
+        // Handle failed API requests gracefully
         if (!response.ok) {
             displayItems([]);
             return;
@@ -119,4 +76,51 @@ async function searchItems() {
     }
 }
 
+// FETCH ITEM DETAILS & OPEN MODAL
+async function viewItem(id) {
+    try {
+        const response = await fetch(`${API_URL}/items/${id}`);
+        const item = await response.json();
+
+        const modalBody = document.getElementById("modalBody");
+        modalBody.innerHTML = `
+            <div class="modal-header">
+                <h2>${item.name}</h2>
+                <div class="item-price" style="margin-top: 5px;">${item.price} Gold</div>
+            </div>
+            
+            <div class="modal-stats">
+                <div><span>Category:</span> ${item.category}</div>
+                <div><span>Attack Damage:</span> ${item.attackDamage}</div>
+                <div><span>Ability Power:</span> ${item.abilityPower}</div>
+                <div><span>Attack Speed:</span> ${item.attackSpeed}%</div>
+            </div>
+
+            <div class="modal-description">
+                <p><strong>Description:</strong></p>
+                <p>${item.description}</p>
+            </div>
+        `;
+
+        document.getElementById("itemModal").classList.add("active");
+    } catch (error) {
+        console.error(error);
+        alert("Unable to retrieve item.");
+    }
+}
+
+// CLOSE MODAL
+function closeModal() {
+    document.getElementById("itemModal").classList.remove("active");
+}
+
+// CLOSE MODAL WHEN CLICKING OUTSIDE ON THE BACKDROP
+window.addEventListener("click", (event) => {
+    const modal = document.getElementById("itemModal");
+    if (event.target === modal) {
+        closeModal();
+    }
+});
+
+// INITIAL FETCH ON PAGE LOAD
 loadItems();
