@@ -649,7 +649,7 @@ items = [
         "armorPenetration": 0,
         "magicPenetration": 0,
         "tenacity": 30,
-        "description": "Grants attack damage and movement speed."
+        "description": "Grants magic resistance and movement speed."
     },
     {
         "id": 29,
