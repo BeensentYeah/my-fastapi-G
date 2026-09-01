@@ -182,6 +182,19 @@ button.secondary:hover {
 }
 
 
+.card-stats-preview {
+    font-size: 13px;
+    font-weight: 600;
+    color: #a3e635; /* Light green highlight for stats */
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.card-stats-preview span {
+    display: inline-block;
+}
+
+
 /* ============================================================
    FOOTER
    ============================================================ */
