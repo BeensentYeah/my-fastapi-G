@@ -94,7 +94,7 @@ function renderPaginatedItems() {
     renderPaginationControls();
 }
 
-// RENDER ITEM CARDS IN GRID
+// RENDER ITEM CARDS IN GRID (IMAGE & NAME SIDE-BY-SIDE)
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     if (!itemList) return;
@@ -113,9 +113,11 @@ function displayItems(items = []) {
         const itemImage = item.image || "https://via.placeholder.com/64";
 
         card.innerHTML = `
-            <img src="${itemImage}" alt="${item.name}" class="item-thumbnail">
+            <div class="item-header-row" style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <img src="${itemImage}" alt="${item.name}" class="item-thumbnail" style="width: 48px; height: 48px; object-fit: contain;" onerror="this.src='https://via.placeholder.com/64'">
+                <h3 style="margin: 0; font-size: 1.1rem;">${item.name}</h3>
+            </div>
             <div class="item-price">${item.price} Gold</div>
-            <h3>${item.name}</h3>
             <div class="item-category">${item.category}</div>
             
             ${renderCardStats(item)}
@@ -130,7 +132,7 @@ function displayItems(items = []) {
     });
 }
 
-// RENDER NUMBERED PAGINATION CONTROLS
+// RENDER NUMBERED PAGINATION CONTROLS (MAX 5 NUMBERS + BACK/NEXT)
 function renderPaginationControls() {
     let paginationContainer = document.getElementById("paginationControls");
     
@@ -147,7 +149,25 @@ function renderPaginationControls() {
     const totalPages = Math.ceil(currentItemsList.length / itemsPerPage) || 1;
     let buttonsHTML = "";
 
-    for (let i = 1; i <= totalPages; i++) {
+    // Back / Previous Button
+    buttonsHTML += `
+        <button 
+            class="prev-btn" 
+            onclick="changePage(-1)" 
+            ${currentPage <= 1 ? "disabled" : ""}>
+            &lsaquo; Back
+        </button>
+    `;
+
+    // Calculate window of up to 5 page numbers
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+
+    if (endPage - startPage < 4) {
+        startPage = Math.max(1, endPage - 4);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
         buttonsHTML += `
             <button 
                 class="page-num ${i === currentPage ? 'active' : ''}" 
@@ -157,6 +177,7 @@ function renderPaginationControls() {
         `;
     }
 
+    // Next Button
     buttonsHTML += `
         <button 
             class="next-btn" 
@@ -191,12 +212,12 @@ function debouncedSearch() {
     }, 300);
 }
 
-// SEARCH FUNCTION
+// SEARCH FUNCTION (FILTERS BY NAME OR CATEGORY CLIENT-SIDE)
 async function searchItems() {
     const searchInput = document.getElementById("searchInput");
     if (!searchInput) return;
 
-    const query = searchInput.value.trim();
+    const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
         loadItems();
@@ -204,14 +225,15 @@ async function searchItems() {
     }
 
     try {
-        const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
-        
-        if (!response.ok) {
-            currentItemsList = [];
-        } else {
-            const data = await response.json();
-            currentItemsList = data.results || [];
-        }
+        const response = await fetch(`${API_URL}/items`);
+        const data = await response.json();
+        const allItems = data.items || [];
+
+        currentItemsList = allItems.filter(item => {
+            const nameMatch = item.name && item.name.toLowerCase().includes(query);
+            const categoryMatch = item.category && item.category.toLowerCase().includes(query);
+            return nameMatch || categoryMatch;
+        });
 
         currentPage = 1;
         renderPaginatedItems();
