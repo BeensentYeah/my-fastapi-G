@@ -1,18 +1,47 @@
 const API_URL = "https://my-fastapi-g.vercel.app";
 
-// Helper function to dynamically extract and render non-zero stats
+// PAGINATION & DATA STATE
+let currentPage = 1;
+const itemsPerPage = 9;
+let currentItemsList = [];
+
+// HELPER FUNCTION: GET CSS CLASS FOR STAT COLOR CODING
+function getStatColorClass(statKey) {
+    const colorMap = {
+        attackDamage: "stat-ad",
+        abilityPower: "stat-ap",
+        health: "stat-health",
+        omnivamp: "stat-vamp",       // Updated to match .stat-vamp
+        lifeSteal: "stat-vamp",      // Updated to match .stat-vamp
+        movementSpeed: "stat-ms",
+        mana: "stat-mana",
+        armor: "stat-armor",
+        magicResist: "stat-mr",
+        attackSpeed: "stat-utility",
+        critChance: "stat-crit",     // Updated to match .stat-crit
+        abilityHaste: "stat-ah",     // Updated to match .stat-ah
+        lethality: "stat-armor-pen", // Updated to match .stat-armor-pen
+        armorPenetration: "stat-armor-pen", // Updated to match .stat-armor-pen
+        magicPenetration: "stat-magic-pen", // Updated to match .stat-magic-pen
+        tenacity: "stat-utility"
+    };
+
+    return colorMap[statKey] || "stat-default";
+}
+
+// RENDER NON-ZERO STAT PREVIEWS ON CARDS (COLOR CODED)
 function renderCardStats(item) {
     const statLabels = {
         attackDamage: "AD",
         abilityPower: "AP",
-        attackSpeed: "AS%",
         health: "Health",
+        movementSpeed: "MS",
         mana: "Mana",
         armor: "Armor",
         magicResist: "MR",
+        attackSpeed: "AS%",
         critChance: "Crit%",
         abilityHaste: "AH",
-        movementSpeed: "MS",
         lifeSteal: "Lifesteal%",
         lethality: "Lethality",
         armorPenetration: "Armor Pen%",
@@ -23,23 +52,12 @@ function renderCardStats(item) {
 
     let activeStats = [];
 
-    // Loop through defined stats
     for (let key in statLabels) {
         if (item[key] && item[key] > 0) {
             let unit = statLabels[key].includes("%") ? "%" : "";
             let cleanLabel = statLabels[key].replace("%", "");
-            activeStats.push(`<span>+${item[key]}${unit} ${cleanLabel}</span>`);
-        }
-    }
-
-    // Check for any unique custom stat added to a specific item
-    const standardKeys = [...Object.keys(statLabels), "id", "name", "price", "category", "description"];
-    for (let key in item) {
-        if (!standardKeys.includes(key) && typeof item[key] === "number" && item[key] > 0) {
-            let formattedLabel = key
-                .replace(/([A-Z])/g, ' $1')
-                .replace(/^./, str => str.toUpperCase());
-            activeStats.push(`<span>+${item[key]} ${formattedLabel}</span>`);
+            let colorClass = getStatColorClass(key);
+            activeStats.push(`<span class="${colorClass}">+${item[key]}${unit} ${cleanLabel}</span>`);
         }
     }
 
@@ -48,29 +66,47 @@ function renderCardStats(item) {
     return `<div class="card-stats-preview">${activeStats.join(" • ")}</div>`;
 }
 
-// Fetch and display all items on page load
-async function fetchItems() {
+// LOAD ALL ITEMS
+async function loadItems() {
     try {
         const response = await fetch(`${API_URL}/items`);
         const data = await response.json();
-        displayItems(data.items);
+        
+        currentItemsList = data.items || [];
+        currentPage = 1;
+        renderPaginatedItems();
     } catch (error) {
-        console.error("Error fetching items:", error);
-        document.getElementById("item-container").innerHTML = `<p class="error">Failed to load items. Check console for details.</p>`;
+        console.error(error);
+        const itemList = document.getElementById("itemList");
+        if (itemList) {
+            itemList.innerHTML = "<p>Unable to connect to the API.</p>";
+        }
     }
 }
 
-// Display items inside cards
-function displayItems(itemList) {
-    const container = document.getElementById("item-container");
-    container.innerHTML = "";
+// SLICE CURRENT DATASET & RENDER PAGE CARDS
+function renderPaginatedItems() {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const itemsToDisplay = currentItemsList.slice(startIndex, endIndex);
 
-    if (!itemList || itemList.length === 0) {
-        container.innerHTML = "<p>No items found.</p>";
+    displayItems(itemsToDisplay);
+    renderPaginationControls();
+}
+
+// RENDER ITEM CARDS IN GRID
+function displayItems(items = []) {
+    const itemList = document.getElementById("itemList");
+    if (!itemList) return;
+
+    itemList.innerHTML = "";
+
+    if (!Array.isArray(items) || items.length === 0) {
+        itemList.innerHTML = "<p>No items found.</p>";
         return;
     }
 
-    itemList.forEach(item => {
+    items.forEach(item => {
         const card = document.createElement("div");
         card.className = "item-card";
 
@@ -80,83 +116,183 @@ function displayItems(itemList) {
             <div class="item-category">${item.category}</div>
             
             ${renderCardStats(item)}
-            
+
             <p>${item.description}</p>
-            <button onclick="viewItem(${item.id})">View Details</button>
+            <button onclick="viewItem('${item.id}')">
+                View Details
+            </button>
         `;
 
-        container.appendChild(card);
+        itemList.appendChild(card);
     });
 }
 
-// Search items using API endpoint
+// RENDER NUMBERED PAGINATION CONTROLS
+function renderPaginationControls() {
+    let paginationContainer = document.getElementById("paginationControls");
+    
+    if (!paginationContainer) {
+        paginationContainer = document.createElement("div");
+        paginationContainer.id = "paginationControls";
+        paginationContainer.className = "pagination-controls";
+        const itemList = document.getElementById("itemList");
+        if (itemList) {
+            itemList.after(paginationContainer);
+        }
+    }
+
+    const totalPages = Math.ceil(currentItemsList.length / itemsPerPage) || 1;
+    let buttonsHTML = "";
+
+    for (let i = 1; i <= totalPages; i++) {
+        buttonsHTML += `
+            <button 
+                class="page-num ${i === currentPage ? 'active' : ''}" 
+                onclick="goToPage(${i})">
+                ${i}
+            </button>
+        `;
+    }
+
+    buttonsHTML += `
+        <button 
+            class="next-btn" 
+            onclick="changePage(1)" 
+            ${currentPage >= totalPages ? "disabled" : ""}>
+            Next &rsaquo;
+        </button>
+    `;
+
+    paginationContainer.innerHTML = buttonsHTML;
+}
+
+function goToPage(pageNumber) {
+    currentPage = pageNumber;
+    renderPaginatedItems();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function changePage(direction) {
+    currentPage += direction;
+    renderPaginatedItems();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// DEBOUNCE TIMER & HANDLER
+let debounceTimer;
+
+function debouncedSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        searchItems();
+    }, 300);
+}
+
+// SEARCH FUNCTION
 async function searchItems() {
-    const query = document.getElementById("search-input").value.trim();
+    const searchInput = document.getElementById("searchInput");
+    if (!searchInput) return;
+
+    const query = searchInput.value.trim();
 
     if (!query) {
-        fetchItems();
+        loadItems();
         return;
     }
 
     try {
         const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        displayItems(data.results);
+        
+        if (!response.ok) {
+            currentItemsList = [];
+        } else {
+            const data = await response.json();
+            currentItemsList = data.results || [];
+        }
+
+        currentPage = 1;
+        renderPaginatedItems();
     } catch (error) {
-        console.error("Error searching items:", error);
+        console.error(error);
     }
 }
 
-// Display modal view details for a specific item
+// VIEW ITEM MODAL DETAILS (SORTED & COLOR CODED)
 async function viewItem(id) {
     try {
         const response = await fetch(`${API_URL}/items/${id}`);
         const item = await response.json();
 
-        const modalContainer = document.getElementById("modal-container");
-        modalContainer.innerHTML = `
-            <div class="modal-backdrop" onclick="closeModal()"></div>
-            <div class="modal-content">
-                <span class="close-btn" onclick="closeModal()">&times;</span>
-                <h2>${item.name}</h2>
-                <div class="item-category">${item.category}</div>
-                <div class="item-price">${item.price} Gold</div>
-                <p class="modal-description">${item.description}</p>
-                
-                <h3>Item Stats</h3>
-                <div class="modal-stats">
-                    <div><span>Attack Damage:</span> ${item.attackDamage ?? 0}</div>
-                    <div><span>Ability Power:</span> ${item.abilityPower ?? 0}</div>
-                    <div><span>Attack Speed:</span> ${item.attackSpeed ?? 0}%</div>
-                    <div><span>Health:</span> ${item.health ?? 0}</div>
-                    <div><span>Mana:</span> ${item.mana ?? 0}</div>
-                    <div><span>Armor:</span> ${item.armor ?? 0}</div>
-                    <div><span>Magic Resist:</span> ${item.magicResist ?? 0}</div>
-                    <div><span>Crit Chance:</span> ${item.critChance ?? 0}%</div>
-                    <div><span>Ability Haste:</span> ${item.abilityHaste ?? 0}</div>
-                    <div><span>Movement Speed:</span> ${item.movementSpeed ?? 0}</div>
-                    <div><span>Life Steal:</span> ${item.lifeSteal ?? 0}%</div>
-                    <div><span>Lethality:</span> ${item.lethality ?? 0}</div>
-                    <div><span>Armor Pen:</span> ${item.armorPenetration ?? 0}%</div>
-                    <div><span>Magic Pen:</span> ${item.magicPenetration ?? 0}</div>
-                    <div><span>Tenacity:</span> ${item.tenacity ?? 0}%</div>
-                    <div><span>Omnivamp:</span> ${item.omnivamp ?? 0}%</div>
+        const statsList = [
+            { key: "attackDamage", label: "Attack Damage", value: item.attackDamage ?? 0, unit: "" },
+            { key: "abilityPower", label: "Ability Power", value: item.abilityPower ?? 0, unit: "" },
+            { key: "health", label: "Health", value: item.health ?? 0, unit: "" },
+            { key: "movementSpeed", label: "Movement Speed", value: item.movementSpeed ?? 0, unit: "" },
+            { key: "mana", label: "Mana", value: item.mana ?? 0, unit: "" },
+            { key: "armor", label: "Armor", value: item.armor ?? 0, unit: "" },
+            { key: "magicResist", label: "Magic Resist", value: item.magicResist ?? 0, unit: "" },
+            { key: "attackSpeed", label: "Attack Speed", value: item.attackSpeed ?? 0, unit: "%" },
+            { key: "critChance", label: "Crit Chance", value: item.critChance ?? 0, unit: "%" },
+            { key: "abilityHaste", label: "Ability Haste", value: item.abilityHaste ?? 0, unit: "" },
+            { key: "lifeSteal", label: "Life Steal", value: item.lifeSteal ?? 0, unit: "%" },
+            { key: "lethality", label: "Lethality", value: item.lethality ?? 0, unit: "" },
+            { key: "armorPenetration", label: "Armor Pen", value: item.armorPenetration ?? 0, unit: "%" },
+            { key: "magicPenetration", label: "Magic Pen", value: item.magicPenetration ?? 0, unit: "" },
+            { key: "tenacity", label: "Tenacity", value: item.tenacity ?? 0, unit: "%" },
+            { key: "omnivamp", label: "Omnivamp", value: item.omnivamp ?? 0, unit: "%" }
+        ];
+
+        // Sort stats from highest value to lowest value
+        statsList.sort((a, b) => b.value - a.value);
+
+        const statsHTML = statsList.map(stat => {
+            const colorClass = getStatColorClass(stat.key);
+            return `<div><span class="${colorClass}">${stat.label}:</span> ${stat.value}${stat.unit}</div>`;
+        }).join("");
+
+        const modalBody = document.getElementById("modalBody");
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div class="modal-header">
+                    <h2>${item.name}</h2>
+                    <div class="item-price" style="margin-top: 5px;">${item.price} Gold</div>
+                    <div class="item-category" style="margin-top: 2px;">Category: ${item.category}</div>
                 </div>
-            </div>
-        `;
-        modalContainer.style.display = "block";
+                
+                <div class="modal-stats">
+                    ${statsHTML}
+                </div>
+
+                <div class="modal-description">
+                    <p><strong>Description:</strong></p>
+                    <p>${item.description}</p>
+                </div>
+            `;
+        }
+
+        const itemModal = document.getElementById("itemModal");
+        if (itemModal) {
+            itemModal.classList.add("active");
+        }
     } catch (error) {
-        console.error("Error fetching item details:", error);
+        console.error(error);
+        alert("Unable to retrieve item.");
     }
 }
 
-// Close item details modal
+// CLOSE MODAL
 function closeModal() {
-    const modalContainer = document.getElementById("modal-container");
-    if (modalContainer) {
-        modalContainer.style.display = "none";
+    const itemModal = document.getElementById("itemModal");
+    if (itemModal) {
+        itemModal.classList.remove("active");
     }
 }
 
-// Initial fetch when window loads
-window.onload = fetchItems;
+window.addEventListener("click", (event) => {
+    const modal = document.getElementById("itemModal");
+    if (event.target === modal) {
+        closeModal();
+    }
+});
+
+loadItems();

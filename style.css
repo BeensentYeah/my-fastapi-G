@@ -108,35 +108,22 @@ button.secondary:hover {
 
 
 /* ============================================================
-   ITEM LIST
+   ITEM LIST & CARDS
    ============================================================ */
 
 .item-list {
     display: grid;
-    grid-template-columns: repeat(
-        auto-fit,
-        minmax(280px, 1fr)
-    );
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
 }
-
-
-/* ============================================================
-   ITEM CARD
-   ============================================================ */
 
 .item-card {
     background: #1e293b;
     padding: 20px;
     border-radius: 8px;
     border: 1px solid #334155;
-
-    box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.3);
-
-    transition:
-        transform 0.2s,
-        border-color 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s, border-color 0.2s;
     display: flex;
     flex-direction: column;
 }
@@ -146,7 +133,6 @@ button.secondary:hover {
     border-color: #c8aa6e;
 }
 
-
 .item-card h3 {
     margin-top: 5px;
     margin-bottom: 10px;
@@ -154,20 +140,29 @@ button.secondary:hover {
     font-size: 22px;
 }
 
-
 .item-price {
     color: #f6c453;
     font-weight: bold;
     font-size: 15px;
 }
 
-
 .item-category {
     color: #38bdf8;
     font-weight: bold;
-    margin-bottom: 15px;
+    margin-bottom: 8px;
 }
 
+/* STAT PREVIEW ON CARDS */
+.card-stats-preview {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.card-stats-preview span {
+    display: inline-block;
+}
 
 .item-card p {
     line-height: 1.5;
@@ -175,23 +170,9 @@ button.secondary:hover {
     margin-bottom: 15px;
 }
 
-
 .item-card button {
     margin-top: auto;
     width: 100%;
-}
-
-
-.card-stats-preview {
-    font-size: 13px;
-    font-weight: 600;
-    color: #a3e635; /* Light green highlight for stats */
-    margin-bottom: 12px;
-    line-height: 1.4;
-}
-
-.card-stats-preview span {
-    display: inline-block;
 }
 
 
@@ -207,172 +188,266 @@ footer {
 
 
 /* ============================================================
-   MODAL OVERLAY
+   MODAL OVERLAY & CONTENT
    ============================================================ */
 
 .modal-overlay {
     display: none;
-
     position: fixed;
-
     top: 0;
     left: 0;
-
     width: 100%;
     height: 100%;
-
     background: rgba(0, 0, 0, 0.75);
-
     backdrop-filter: blur(4px);
-
     z-index: 1000;
-
     justify-content: center;
     align-items: center;
 }
-
-
-/* Show modal */
 
 .modal-overlay.active {
     display: flex;
 }
 
-
-/* ============================================================
-   MODAL CONTENT
-   ============================================================ */
-
 .modal-content {
     background: #1e293b;
-
     border: 2px solid #c8aa6e;
-
     border-radius: 10px;
-
     width: 90%;
     max-width: 480px;
-
     padding: 24px;
-
     position: relative;
-
-    box-shadow:
-        0 10px 25px rgba(0, 0, 0, 0.6);
-
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
     color: #e8e8e8;
-
     animation: modalSlideIn 0.2s ease-out;
 }
 
-
-/* ============================================================
-   MODAL ANIMATION
-   ============================================================ */
-
 @keyframes modalSlideIn {
-
     from {
         transform: translateY(-20px);
         opacity: 0;
     }
-
     to {
         transform: translateY(0);
         opacity: 1;
     }
-
 }
-
-
-/* ============================================================
-   MODAL CLOSE BUTTON
-   ============================================================ */
 
 .modal-close {
     position: absolute;
-
     top: 12px;
     right: 16px;
-
     background: none;
-
     border: none;
-
     font-size: 24px;
-
     color: #94a3b8;
-
     cursor: pointer;
-
     padding: 0;
-
     width: auto;
 }
 
 .modal-close:hover {
     color: #f0d78c;
-
     background: none;
 }
 
-
-/* ============================================================
-   MODAL HEADER
-   ============================================================ */
-
 .modal-header {
     border-bottom: 1px solid #334155;
-
     padding-bottom: 12px;
-
     margin-bottom: 16px;
 }
 
 .modal-header h2 {
     margin: 0;
-
     color: #f0d78c;
-
     font-size: 24px;
+}
+
+/* MODAL STATS GRID */
+.modal-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: column;
+    grid-template-rows: repeat(8, auto);
+    gap: 8px 16px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    padding: 12px;
+    background-color: #1a202c;
+    border-radius: 6px; 
+}
+
+.modal-stats div {
+    display: flex;
+    justify-content: flex-start;
+    gap: 6px;
+    font-size: 14px;
+    color: #e2e8f0;
+}
+
+.modal-description {
+    line-height: 1.5;
+    color: #cbd5e1;
 }
 
 
 /* ============================================================
-   MODAL STATS
+   STAT COLOR CLASSES
    ============================================================ */
 
-.modal-stats {
-    display: grid;
-
-    grid-template-columns: 1fr 1fr;
-
-    gap: 10px;
-
-    background: #0f1720;
-
-    padding: 12px;
-
-    border-radius: 6px;
-
-    margin-bottom: 16px;
-
-    font-size: 14px;
+/* Attack Damage - Orange */
+.stat-ad {
+    color: #f97316 !important;
+    font-weight: bold;
 }
 
-.modal-stats div span {
-    color: #c8aa6e;
+/* Ability Power - Purple */
+.stat-ap {
+    color: #a855f7 !important;
+    font-weight: bold;
+}
 
+/* Health - Green */
+.stat-health {
+    color: #22c55e !important;
+    font-weight: bold;
+}
+
+/* Lifesteal & Omnivamp - Darkish Crimson Red */
+.stat-vamp {
+    color: #b91c1c !important;
+    font-weight: bold;
+}
+
+/* Movement Speed - White */
+.stat-ms {
+    color: #ffffff !important;
+    font-weight: bold;
+}
+
+/* Mana - Blue */
+.stat-mana {
+    color: #3b82f6 !important;
+    font-weight: bold;
+}
+
+/* Armor - Yellow */
+.stat-armor {
+    color: #eab308 !important;
+    font-weight: bold;
+}
+
+/* Magic Resist - Bright Cyan */
+.stat-mr {
+    color: #06b6d4 !important;
+    font-weight: bold;
+}
+
+/* Ability Haste - Teal */
+.stat-ah {
+    color: #00d8d6 !important;
+    font-weight: bold;
+}
+
+/* Armor Penetration & Lethality - Red */
+.stat-armor-pen {
+    color: #ff4d4d !important;
+    font-weight: bold;
+}
+
+/* Magic Penetration - Pink/Magenta */
+.stat-magic-pen {
+    color: #e84393 !important;
+    font-weight: bold;
+}
+
+/* Critical Strike Chance - Bright Red-Orange */
+.stat-crit {
+    color: #ff3838 !important;
+    font-weight: bold;
+}
+
+/* Utility (Attack Speed, Tenacity) - Amber/Gold */
+.stat-utility {
+    color: #f59e0b !important;
+    font-weight: bold;
+}
+
+/* Default Fallback */
+.stat-default {
+    color: #c8aa6e !important;
     font-weight: bold;
 }
 
 
 /* ============================================================
-   MODAL DESCRIPTION
+   PAGINATION CONTROLS
    ============================================================ */
 
-.modal-description {
-    line-height: 1.5;
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 40px auto;
+}
 
-    color: #cbd5e1;
+/* Page Number Buttons (Centered Text) */
+.pagination-controls .page-num {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    background-color: #334155;
+    color: #f8fafc;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.pagination-controls .page-num:hover:not(.active) {
+    background-color: #475569;
+}
+
+/* Selected Active Page */
+.pagination-controls .page-num.active {
+    background-color: #14532d;
+    color: #ffffff;
+    font-weight: 700;
+    cursor: default;
+}
+
+/* Next Button */
+.pagination-controls .next-btn {
+    height: 38px;
+    padding: 0 16px;
+    background-color: transparent;
+    color: #f8fafc;
+    border: 1px solid #f8fafc;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    margin-left: 4px;
+    transition: all 0.2s;
+}
+
+.pagination-controls .next-btn:hover:not(:disabled) {
+    background-color: #f8fafc;
+    color: #0f172a;
+}
+
+.pagination-controls .next-btn:disabled {
+    opacity: 0.3;
+    border-color: #475569;
+    color: #475569;
+    cursor: not-allowed;
 }
