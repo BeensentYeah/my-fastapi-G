@@ -16,67 +16,134 @@ app.add_middleware(
 )
 
 
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
-# LEAGUE OF LEGENDS ITEM DATA
+app = FastAPI(
+    title="League of Legends Item API",
+    description="REST API containing League of Legends items categorized by tier with full stats.",
+    version="1.0.0"
+)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+# ITEM DATA WITH ALL 11 LEAGUE STATS AND REQUESTED CATEGORIES
 items = [
     {
         "id": 1,
-        "name": "Infinity Edge",
-        "price": 3600,
-        "category": "Critical Strike",
-        "attackDamage": 75,
+        "name": "Health Potion",
+        "price": 50,
+        "category": "Consumable items",
+        "attackDamage": 0,
         "abilityPower": 0,
         "attackSpeed": 0,
-        "description": "A powerful critical strike item that greatly increases attack damage and critical strike damage."
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Consumes the potion to restore 120 Health over 15 seconds."
     },
     {
         "id": 2,
-        "name": "Bloodthirster",
-        "price": 3400,
-        "category": "Attack Damage",
-        "attackDamage": 80,
+        "name": "Doran's Blade",
+        "price": 450,
+        "category": "Starter items",
+        "attackDamage": 10,
         "abilityPower": 0,
         "attackSpeed": 0,
-        "description": "A powerful offensive item that provides attack damage and life steal."
+        "health": 80,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 3,
+        "description": "Good starter item for physical damage champions."
     },
     {
         "id": 3,
-        "name": "Rabadon's Deathcap",
-        "price": 3600,
-        "category": "Ability Power",
-        "attackDamage": 0,
-        "abilityPower": 130,
+        "name": "Long Sword",
+        "price": 350,
+        "category": "Basic items",
+        "attackDamage": 10,
+        "abilityPower": 0,
         "attackSpeed": 0,
-        "description": "A powerful mage item that massively increases ability power."
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Basic component item providing raw Attack Damage."
     },
     {
         "id": 4,
-        "name": "Guardian Angel",
-        "price": 3200,
-        "category": "Attack Damage",
-        "attackDamage": 55,
+        "name": "Boots of Speed",
+        "price": 300,
+        "category": "Boot",
+        "attackDamage": 0,
         "abilityPower": 0,
         "attackSpeed": 0,
-        "description": "An offensive defensive item that can revive its wearer after taking fatal damage."
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 25,
+        "lifeSteal": 0,
+        "description": "Enhances Movement Speed."
     },
     {
         "id": 5,
-        "name": "Trinity Force",
-        "price": 3333,
-        "category": "Fighter",
-        "attackDamage": 36,
+        "name": "B. F. Sword",
+        "price": 1300,
+        "category": "Epic items",
+        "attackDamage": 40,
         "abilityPower": 0,
-        "attackSpeed": 30,
-        "description": "A versatile fighter item that provides attack damage, attack speed, movement speed, and powerful on-hit effects."
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Powerful component item required for high-tier physical damage weapons."
+    },
+    {
+        "id": 6,
+        "name": "Infinity Edge",
+        "price": 3600,
+        "category": "Legendary items",
+        "attackDamage": 80,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 25,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "A powerful critical strike item that greatly increases attack damage and critical strike damage."
     }
 ]
-
-
-
-# HOME
-
 
 @app.get("/")
 def home():
@@ -89,11 +156,6 @@ def home():
         ]
     }
 
-
-
-# GET ALL ITEMS
-
-
 @app.get("/items")
 def get_items():
     return {
@@ -101,28 +163,17 @@ def get_items():
         "items": items
     }
 
-
-
-
-# SEARCH ITEMS
-
-
+# SEARCH ENDPOINT (Placed BEFORE /items/{item_id})
 @app.get("/items/search")
 def search_items(q: str = Query(..., min_length=1)):
-
     q = q.lower()
-
     results = []
 
     for item in items:
-
         searchable_text = (
             f"{item['name']} "
             f"{item['price']} "
             f"{item['category']} "
-            f"{item['attackDamage']} "
-            f"{item['abilityPower']} "
-            f"{item['attackSpeed']} "
             f"{item['description']}"
         ).lower()
 
@@ -135,14 +186,8 @@ def search_items(q: str = Query(..., min_length=1)):
         "results": results
     }
 
-
-
-# GET ONE ITEM
-
-
 @app.get("/items/{item_id}")
 def get_item(item_id: int):
-
     for item in items:
         if item["id"] == item_id:
             return item
@@ -151,3 +196,170 @@ def get_item(item_id: int):
         status_code=404,
         detail="Item not found."
     )
+# LEAGUE OF LEGENDS ITEM DATA
+
+items = [
+    {
+        "id": 1,
+        "name": "Health Potion",
+        "price": 50,
+        "category": "Consumable items",
+        "attackDamage": 0,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Consumes the potion to restore 120 Health over 15 seconds."
+    },
+    {
+        "id": 2,
+        "name": "Doran's Blade",
+        "price": 450,
+        "category": "Starter items",
+        "attackDamage": 10,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 80,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 3,
+        "description": "Good starter item for physical damage champions."
+    },
+    {
+        "id": 3,
+        "name": "Long Sword",
+        "price": 350,
+        "category": "Basic items",
+        "attackDamage": 10,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Basic component item providing raw Attack Damage."
+    },
+    {
+        "id": 4,
+        "name": "Boots of Speed",
+        "price": 300,
+        "category": "Boot",
+        "attackDamage": 0,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 25,
+        "lifeSteal": 0,
+        "description": "Enhances Movement Speed."
+    },
+    {
+        "id": 5,
+        "name": "B. F. Sword",
+        "price": 1300,
+        "category": "Epic items",
+        "attackDamage": 40,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "Powerful component item required for high-tier physical damage weapons."
+    },
+    {
+        "id": 6,
+        "name": "Infinity Edge",
+        "price": 3600,
+        "category": "Legendary items",
+        "attackDamage": 80,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 25,
+        "abilityHaste": 0,
+        "movementSpeed": 0,
+        "lifeSteal": 0,
+        "description": "A powerful critical strike item that greatly increases attack damage and critical strike damage."
+    }
+]
+
+@app.get("/")
+def home():
+    return {
+        "message": "Welcome to the League of Legends Item API!",
+        "endpoints": [
+            "/items",
+            "/items/{id}",
+            "/items/search"
+        ]
+    }
+
+@app.get("/items")
+def get_items():
+    return {
+        "count": len(items),
+        "items": items
+    }
+
+# SEARCH ITEMS (Must come BEFORE /items/{item_id})
+@app.get("/items/search")
+def search_items(q: str = Query(..., min_length=1)):
+    q = q.lower()
+    results = []
+
+    for item in items:
+        searchable_text = (
+            f"{item['name']} "
+            f"{item['price']} "
+            f"{item['category']} "
+            f"{item['description']}"
+        ).lower()
+
+        if q in searchable_text:
+            results.append(item)
+
+    return {
+        "query": q,
+        "count": len(results),
+        "results": results
+    }
+
+# GET SINGLE ITEM BY ID
+@app.get("/items/{item_id}")
+def get_item(item_id: int):
+    for item in items:
+        if item["id"] == item_id:
+            return item
+
+    raise HTTPException(
+        status_code=404,
+        detail="Item not found."
+    )
+
+

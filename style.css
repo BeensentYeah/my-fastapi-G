@@ -3,6 +3,10 @@
 }
 
 
+/* ============================================================
+   BODY
+   ============================================================ */
+
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -10,6 +14,10 @@ body {
     color: #e8e8e8;
 }
 
+
+/* ============================================================
+   HEADER
+   ============================================================ */
 
 header {
     background: #111827;
@@ -30,12 +38,20 @@ header p {
 }
 
 
+/* ============================================================
+   MAIN
+   ============================================================ */
+
 main {
     max-width: 1000px;
     margin: 40px auto;
     padding: 0 20px;
 }
 
+
+/* ============================================================
+   SEARCH
+   ============================================================ */
 
 .search {
     display: flex;
@@ -63,6 +79,10 @@ main {
 }
 
 
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
 button {
     padding: 12px 18px;
     border: none;
@@ -87,14 +107,23 @@ button.secondary:hover {
 }
 
 
+/* ============================================================
+   ITEM LIST
+   ============================================================ */
 
 .item-list {
     display: grid;
-    grid-template-columns:
-        repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(
+        auto-fit,
+        minmax(280px, 1fr)
+    );
     gap: 20px;
 }
 
+
+/* ============================================================
+   ITEM CARD
+   ============================================================ */
 
 .item-card {
     background: #1e293b;
@@ -114,7 +143,6 @@ button.secondary:hover {
     transform: translateY(-4px);
     border-color: #c8aa6e;
 }
-
 
 
 .item-card h3 {
@@ -150,8 +178,184 @@ button.secondary:hover {
 }
 
 
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
 footer {
     text-align: center;
     padding: 30px;
     color: #777;
+}
+
+
+/* ============================================================
+   MODAL OVERLAY
+   ============================================================ */
+
+.modal-overlay {
+    display: none;
+
+    position: fixed;
+
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+
+    background: rgba(0, 0, 0, 0.75);
+
+    backdrop-filter: blur(4px);
+
+    z-index: 1000;
+
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* Show modal */
+
+.modal-overlay.active {
+    display: flex;
+}
+
+
+/* ============================================================
+   MODAL CONTENT
+   ============================================================ */
+
+.modal-content {
+    background: #1e293b;
+
+    border: 2px solid #c8aa6e;
+
+    border-radius: 10px;
+
+    width: 90%;
+    max-width: 480px;
+
+    padding: 24px;
+
+    position: relative;
+
+    box-shadow:
+        0 10px 25px rgba(0, 0, 0, 0.6);
+
+    color: #e8e8e8;
+
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+
+/* ============================================================
+   MODAL ANIMATION
+   ============================================================ */
+
+@keyframes modalSlideIn {
+
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+
+}
+
+
+/* ============================================================
+   MODAL CLOSE BUTTON
+   ============================================================ */
+
+.modal-close {
+    position: absolute;
+
+    top: 12px;
+    right: 16px;
+
+    background: none;
+
+    border: none;
+
+    font-size: 24px;
+
+    color: #94a3b8;
+
+    cursor: pointer;
+
+    padding: 0;
+
+    width: auto;
+}
+
+.modal-close:hover {
+    color: #f0d78c;
+
+    background: none;
+}
+
+
+/* ============================================================
+   MODAL HEADER
+   ============================================================ */
+
+.modal-header {
+    border-bottom: 1px solid #334155;
+
+    padding-bottom: 12px;
+
+    margin-bottom: 16px;
+}
+
+.modal-header h2 {
+    margin: 0;
+
+    color: #f0d78c;
+
+    font-size: 24px;
+}
+
+
+/* ============================================================
+   MODAL STATS
+   ============================================================ */
+
+.modal-stats {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 10px;
+
+    background: #0f1720;
+
+    padding: 12px;
+
+    border-radius: 6px;
+
+    margin-bottom: 16px;
+
+    font-size: 14px;
+}
+
+.modal-stats div span {
+    color: #c8aa6e;
+
+    font-weight: bold;
+}
+
+
+/* ============================================================
+   MODAL DESCRIPTION
+   ============================================================ */
+
+.modal-description {
+    line-height: 1.5;
+
+    color: #cbd5e1;
 }

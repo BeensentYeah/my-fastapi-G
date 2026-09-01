@@ -13,7 +13,7 @@ async function loadItems() {
     }
 }
 
-// RENDER ITEM CARDS IN GRID
+// RENDER ITEM CARDS
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     itemList.innerHTML = "";
@@ -30,6 +30,7 @@ function displayItems(items = []) {
         card.innerHTML = `
             <div class="item-price">${item.price} Gold</div>
             <h3>${item.name}</h3>
+            <div class="item-category">${item.category}</div>
             <p>${item.description}</p>
             <button onclick="viewItem('${item.id}')">
                 View Details
@@ -40,7 +41,7 @@ function displayItems(items = []) {
     });
 }
 
-// DEBOUNCE TIMER & HANDLER (Triggers instant search after 300ms pause)
+// DEBOUNCE TIMER & HANDLER
 let debounceTimer;
 
 function debouncedSearch() {
@@ -54,7 +55,6 @@ function debouncedSearch() {
 async function searchItems() {
     const query = document.getElementById("searchInput").value.trim();
 
-    // If input is empty, reset grid to show all items
     if (!query) {
         loadItems();
         return;
@@ -63,7 +63,6 @@ async function searchItems() {
     try {
         const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
         
-        // Handle failed API requests gracefully
         if (!response.ok) {
             displayItems([]);
             return;
@@ -76,7 +75,7 @@ async function searchItems() {
     }
 }
 
-// FETCH ITEM DETAILS & OPEN MODAL
+// VIEW ITEM MODAL DETAILS (Displays every single stat)
 async function viewItem(id) {
     try {
         const response = await fetch(`${API_URL}/items/${id}`);
@@ -87,13 +86,21 @@ async function viewItem(id) {
             <div class="modal-header">
                 <h2>${item.name}</h2>
                 <div class="item-price" style="margin-top: 5px;">${item.price} Gold</div>
+                <div class="item-category" style="margin-top: 2px;">Category: ${item.category}</div>
             </div>
             
             <div class="modal-stats">
-                <div><span>Category:</span> ${item.category}</div>
-                <div><span>Attack Damage:</span> ${item.attackDamage}</div>
-                <div><span>Ability Power:</span> ${item.abilityPower}</div>
-                <div><span>Attack Speed:</span> ${item.attackSpeed}%</div>
+                <div><span>Attack Damage:</span> ${item.attackDamage ?? 0}</div>
+                <div><span>Ability Power:</span> ${item.abilityPower ?? 0}</div>
+                <div><span>Attack Speed:</span> ${item.attackSpeed ?? 0}%</div>
+                <div><span>Health:</span> ${item.health ?? 0}</div>
+                <div><span>Mana:</span> ${item.mana ?? 0}</div>
+                <div><span>Armor:</span> ${item.armor ?? 0}</div>
+                <div><span>Magic Resist:</span> ${item.magicResist ?? 0}</div>
+                <div><span>Crit Chance:</span> ${item.critChance ?? 0}%</div>
+                <div><span>Ability Haste:</span> ${item.abilityHaste ?? 0}</div>
+                <div><span>Movement Speed:</span> ${item.movementSpeed ?? 0}</div>
+                <div><span>Life Steal:</span> ${item.lifeSteal ?? 0}%</div>
             </div>
 
             <div class="modal-description">
@@ -114,7 +121,7 @@ function closeModal() {
     document.getElementById("itemModal").classList.remove("active");
 }
 
-// CLOSE MODAL WHEN CLICKING OUTSIDE ON THE BACKDROP
+// CLOSE MODAL WHEN CLICKING OUTSIDE
 window.addEventListener("click", (event) => {
     const modal = document.getElementById("itemModal");
     if (event.target === modal) {
@@ -122,5 +129,4 @@ window.addEventListener("click", (event) => {
     }
 });
 
-// INITIAL FETCH ON PAGE LOAD
 loadItems();
