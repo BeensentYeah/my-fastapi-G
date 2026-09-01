@@ -748,6 +748,27 @@ items = [
         "magicPenetration": 0,
         "tenacity": 0,
         "description": "Grants superior raw movement speed."
+    },
+    {
+        "id": 35,
+        "name": "Slightly Magical Boots",
+        "price": 0,
+        "category": "Boots",
+        "attackDamage": 0,
+        "abilityPower": 0,
+        "attackSpeed": 0,
+        "health": 0,
+        "mana": 0,
+        "armor": 0,
+        "magicResist": 0,
+        "critChance": 0,
+        "abilityHaste": 0,
+        "movementSpeed": 25,
+        "lifeSteal": 0,
+        "armorPenetration": 0,
+        "magicPenetration": 0,
+        "tenacity": 0,
+        "description": "Slightly more magical than standard boots. Grants a minor movement speed boost."
     }
 ]
 
