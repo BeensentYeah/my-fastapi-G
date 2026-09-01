@@ -37,9 +37,10 @@ class Item(BaseModel):
 items = [
     {
         "id": 1,
-        "name": "Doran's Blade",
+        "name": "Dorn's Blade",
         "price": 450,
         "category": "Starter items",
+        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1055.png",
         "attackDamage": 10,
         "abilityPower": 0,
         "attackSpeed": 0,

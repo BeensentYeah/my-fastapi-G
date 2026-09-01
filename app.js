@@ -95,6 +95,7 @@ function renderPaginatedItems() {
 }
 
 // RENDER ITEM CARDS IN GRID
+// RENDER ITEM CARDS IN GRID
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     if (!itemList) return;
@@ -110,7 +111,11 @@ function displayItems(items = []) {
         const card = document.createElement("div");
         card.className = "item-card";
 
+        // Fallback image if item.image is missing
+        const itemImage = item.image || "https://via.placeholder.com/64";
+
         card.innerHTML = `
+            <img src="${itemImage}" alt="${item.name}" class="item-thumbnail">
             <div class="item-price">${item.price} Gold</div>
             <h3>${item.name}</h3>
             <div class="item-category">${item.category}</div>
