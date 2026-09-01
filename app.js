@@ -11,18 +11,18 @@ function getStatColorClass(statKey) {
         attackDamage: "stat-ad",
         abilityPower: "stat-ap",
         health: "stat-health",
-        omnivamp: "stat-vamp",       // Updated to match .stat-vamp
-        lifeSteal: "stat-vamp",      // Updated to match .stat-vamp
+        omnivamp: "stat-vamp",
+        lifeSteal: "stat-vamp",
         movementSpeed: "stat-ms",
         mana: "stat-mana",
         armor: "stat-armor",
         magicResist: "stat-mr",
         attackSpeed: "stat-utility",
-        critChance: "stat-crit",     // Updated to match .stat-crit
-        abilityHaste: "stat-ah",     // Updated to match .stat-ah
-        lethality: "stat-armor-pen", // Updated to match .stat-armor-pen
-        armorPenetration: "stat-armor-pen", // Updated to match .stat-armor-pen
-        magicPenetration: "stat-magic-pen", // Updated to match .stat-magic-pen
+        critChance: "stat-crit",
+        abilityHaste: "stat-ah",
+        lethality: "stat-armor-pen",
+        armorPenetration: "stat-armor-pen",
+        magicPenetration: "stat-magic-pen",
         tenacity: "stat-utility"
     };
 
@@ -95,7 +95,6 @@ function renderPaginatedItems() {
 }
 
 // RENDER ITEM CARDS IN GRID
-// RENDER ITEM CARDS IN GRID
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     if (!itemList) return;
@@ -111,7 +110,6 @@ function displayItems(items = []) {
         const card = document.createElement("div");
         card.className = "item-card";
 
-        // Fallback image if item.image is missing
         const itemImage = item.image || "https://via.placeholder.com/64";
 
         card.innerHTML = `
@@ -247,7 +245,6 @@ async function viewItem(id) {
             { key: "omnivamp", label: "Omnivamp", value: item.omnivamp ?? 0, unit: "%" }
         ];
 
-        // Sort stats from highest value to lowest value
         statsList.sort((a, b) => b.value - a.value);
 
         const statsHTML = statsList.map(stat => {
