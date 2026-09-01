@@ -1822,7 +1822,7 @@ items = [
         "name": "Steel Sigil",
         "price": 1100,
         "category": "Epic Items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3047.png", // mapped placeholder variant
+        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3047.png", 
         "attackDamage": 15,
         "abilityPower": 0,
         "attackSpeed": 0,
