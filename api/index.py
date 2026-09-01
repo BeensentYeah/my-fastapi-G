@@ -458,7 +458,7 @@ items = [
         "name": "Luden's Companion",
         "price": 3000,
         "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6656.png",
+        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6655.png",
         "attackDamage": 0,
         "abilityPower": 90,
         "attackSpeed": 0,
