@@ -83,4 +83,40 @@ async function searchItems() {
     }
 }
 
+// --- DEBOUNCE TIMER & FUNCTION ADDED HERE ---
+let debounceTimer;
+
+function debouncedSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+        searchItems();
+    }, 300); // 300ms delay after typing stops
+}
+
+// --- UPDATED SEARCH FUNCTION ---
+async function searchItems() {
+    const query = document.getElementById("searchInput").value.trim();
+
+    // If text box is empty, load all items immediately
+    if (!query) {
+        loadItems();
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/items/search?q=${encodeURIComponent(query)}`);
+        
+        // Handle cases where API returns non-200 (like 422 for short query)
+        if (!response.ok) {
+            displayItems([]);
+            return;
+        }
+
+        const data = await response.json();
+        displayItems(data.results || []);
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 loadItems();
