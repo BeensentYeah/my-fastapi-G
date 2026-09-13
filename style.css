@@ -183,7 +183,6 @@ button.secondary:hover {
     border: 1px solid #333;
 }
 
-/* STAT PREVIEW ON CARDS */
 .card-stats-preview {
     font-size: 13px;
     font-weight: 600;
@@ -218,9 +217,6 @@ footer {
 }
 
 
-/* ============================================================
-   MODAL OVERLAY & CONTENT
-   ============================================================ */
 
 .modal-overlay {
     display: none;
@@ -322,98 +318,77 @@ footer {
 }
 
 
-/* ============================================================
-   STAT COLOR CLASSES
-   ============================================================ */
-
-/* Attack Damage - Orange */
 .stat-ad {
     color: #f97316 !important;
     font-weight: bold;
 }
 
-/* Ability Power - Purple */
 .stat-ap {
     color: #a855f7 !important;
     font-weight: bold;
 }
 
-/* Health - Green */
 .stat-health {
     color: #22c55e !important;
     font-weight: bold;
 }
 
-/* Lifesteal & Omnivamp - Darkish Crimson Red */
 .stat-vamp {
     color: #b91c1c !important;
     font-weight: bold;
 }
 
-/* Movement Speed - White */
 .stat-ms {
     color: #ffffff !important;
     font-weight: bold;
 }
 
-/* Mana - Blue */
 .stat-mana {
     color: #3b82f6 !important;
     font-weight: bold;
 }
 
-/* Armor - Yellow */
 .stat-armor {
     color: #eab308 !important;
     font-weight: bold;
 }
 
-/* Magic Resist - Bright Cyan */
 .stat-mr {
     color: #06b6d4 !important;
     font-weight: bold;
 }
 
-/* Ability Haste - Teal */
 .stat-ah {
     color: #00d8d6 !important;
     font-weight: bold;
 }
 
-/* Armor Penetration & Lethality - Red */
 .stat-armor-pen {
     color: #ff4d4d !important;
     font-weight: bold;
 }
 
-/* Magic Penetration - Pink/Magenta */
 .stat-magic-pen {
     color: #e84393 !important;
     font-weight: bold;
 }
 
-/* Critical Strike Chance - Bright Red-Orange */
 .stat-crit {
     color: #ff3838 !important;
     font-weight: bold;
 }
 
-/* Utility (Attack Speed, Tenacity) - Amber/Gold */
 .stat-utility {
     color: #f59e0b !important;
     font-weight: bold;
 }
 
-/* Default Fallback */
 .stat-default {
     color: #c8aa6e !important;
     font-weight: bold;
 }
 
 
-/* ============================================================
-   PAGINATION CONTROLS
-   ============================================================ */
 
 .pagination-controls {
     display: flex;
@@ -424,7 +399,6 @@ footer {
     margin: 40px auto;
 }
 
-/* Page Number Buttons (Centered Text) */
 .pagination-controls .page-num {
     display: flex;
     justify-content: center;
@@ -448,21 +422,19 @@ footer {
     background-color: #475569;
 }
 
-/* Selected Active Page */
 .pagination-controls .page-num.active {
-    background-color: #14532d;
+    background-color: #59acd8;
     color: #ffffff;
     font-weight: 700;
     cursor: default;
 }
 
-/* Next Button */
 .pagination-controls .next-btn {
     height: 38px;
     padding: 0 16px;
-    background-color: transparent;
-    color: #f8fafc;
-    border: 1px solid #f8fafc;
+    background-color: #c8aa6e;
+    color: #000000;
+    border: 1px solid #f8fafc00;
     border-radius: 4px;
     font-weight: 600;
     font-size: 14px;
@@ -481,4 +453,38 @@ footer {
     border-color: #475569;
     color: #475569;
     cursor: not-allowed;
+}
+
+header {
+    background: #111827;
+    color: white;
+    padding: 25px 40px;
+    border-bottom: 2px solid #c8aa6e;
+}
+
+.header-container {
+    position: relative;
+    max-width: 1000px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+header h1 {
+    margin: 0 0 5px;
+    color: #c8aa6e;
+}
+
+header p {
+    margin: 0;
+    color: #b8b8b8;
+}
+
+.lol-logo-top-right {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
 }

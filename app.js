@@ -5,7 +5,6 @@ let currentPage = 1;
 const itemsPerPage = 9;
 let currentItemsList = [];
 
-// HELPER FUNCTION: GET CSS CLASS FOR STAT COLOR CODING
 function getStatColorClass(statKey) {
     const colorMap = {
         attackDamage: "stat-ad",
@@ -29,7 +28,6 @@ function getStatColorClass(statKey) {
     return colorMap[statKey] || "stat-default";
 }
 
-// RENDER NON-ZERO STAT PREVIEWS ON CARDS (COLOR CODED)
 function renderCardStats(item) {
     const statLabels = {
         attackDamage: "AD",
@@ -66,7 +64,6 @@ function renderCardStats(item) {
     return `<div class="card-stats-preview">${activeStats.join(" • ")}</div>`;
 }
 
-// LOAD ALL ITEMS
 async function loadItems() {
     try {
         const response = await fetch(`${API_URL}/items`);
@@ -84,7 +81,6 @@ async function loadItems() {
     }
 }
 
-// SLICE CURRENT DATASET & RENDER PAGE CARDS
 function renderPaginatedItems() {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -94,7 +90,6 @@ function renderPaginatedItems() {
     renderPaginationControls();
 }
 
-// RENDER ITEM CARDS IN GRID (IMAGE & NAME SIDE-BY-SIDE)
 function displayItems(items = []) {
     const itemList = document.getElementById("itemList");
     if (!itemList) return;
@@ -132,7 +127,6 @@ function displayItems(items = []) {
     });
 }
 
-// RENDER NUMBERED PAGINATION CONTROLS (MAX 5 NUMBERS + BACK/NEXT)
 function renderPaginationControls() {
     let paginationContainer = document.getElementById("paginationControls");
     
@@ -149,7 +143,6 @@ function renderPaginationControls() {
     const totalPages = Math.ceil(currentItemsList.length / itemsPerPage) || 1;
     let buttonsHTML = "";
 
-    // Back / Previous Button
     buttonsHTML += `
         <button 
             class="prev-btn" 
@@ -159,7 +152,6 @@ function renderPaginationControls() {
         </button>
     `;
 
-    // Calculate window of up to 5 page numbers
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
 
@@ -202,7 +194,6 @@ function changePage(direction) {
     window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// DEBOUNCE TIMER & HANDLER
 let debounceTimer;
 
 function debouncedSearch() {
@@ -212,7 +203,6 @@ function debouncedSearch() {
     }, 300);
 }
 
-// SEARCH FUNCTION (FILTERS BY NAME OR CATEGORY CLIENT-SIDE)
 async function searchItems() {
     const searchInput = document.getElementById("searchInput");
     if (!searchInput) return;
@@ -242,7 +232,6 @@ async function searchItems() {
     }
 }
 
-// VIEW ITEM MODAL DETAILS (SORTED & COLOR CODED)
 async function viewItem(id) {
     try {
         const response = await fetch(`${API_URL}/items/${id}`);
@@ -304,7 +293,6 @@ async function viewItem(id) {
     }
 }
 
-// CLOSE MODAL
 function closeModal() {
     const itemModal = document.getElementById("itemModal");
     if (itemModal) {

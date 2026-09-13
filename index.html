@@ -14,13 +14,14 @@
 <body>
 
     <header>
-
-        <h1>⚔️ League of Legends Item Finder</h1>
-
-        <p>Every single Item in the game</p>
-
+        <div class="header-container">
+            <div>
+                <h1> League of Legends Items </h1>
+                <p>Explore, Search, and View</p>
+            </div>
+            <img src="https://logos-world.net/wp-content/uploads/2023/02/LoL-Symbol.png" alt="LoL Logo" class="lol-logo-top-right">
+        </div>
     </header>
-
 
     <main>
 
@@ -66,17 +67,14 @@
 
     </footer>
 
-    <!-- MODAL CONTAINER -->
     <div id="itemModal" class="modal-overlay">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()">&times;</button>
             <div id="modalBody">
-                <!-- Modal details will be inserted here -->
             </div>
         </div>
     </div>
 
-    <!-- SCRIPT (Keep only one copy at the very end) -->
     <script src="app.js"></script>
 
 </body>
