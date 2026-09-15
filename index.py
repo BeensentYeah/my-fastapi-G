@@ -1126,7 +1126,7 @@ items = [
         "price": 875,
         "category": "Basic items",
         "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1037.png",
-        "sellPrice": 612.5,
+        "sellPrice": 612,
         "attackDamage": 25,
         "abilityPower": 0,
         "attackSpeed": 0,
