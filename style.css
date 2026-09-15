@@ -69,9 +69,14 @@ body {
 }
 
 .crest {
-    color: var(--gold);
     flex-shrink: 0;
     line-height: 0;
+}
+
+.crest img {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
 }
 
 .site-header h1 {
