@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Itemdle - Guess the League Item</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="site-header">
+        <div class="header-inner">
+            <div>
+                <h1>Itemdle</h1>
+                <p>Guess the mystery item. Every guess shows how close its stats, category and price are.</p>
+            </div>
+        </div>
+    </header>
+
+    <main>
+
+        <div class="mode-row">
+            <label for="modeSelect">Item pool</label>
+            <select id="modeSelect" class="mode-select">
+                <option>Loading...</option>
+            </select>
+        </div>
+
+        <section class="guess-area">
+            <div class="guess-field">
+                <svg class="search-icon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+                    <circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                    <line x1="13.5" y1="13.5" x2="18" y2="18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <input
+                    type="text"
+                    id="guessInput"
+                    placeholder="Type an item name..."
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+                <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
+            </div>
+
+            <button id="guessBtn" type="button">Guess</button>
+            <button id="giveUpBtn" type="button" class="secondary">Give Up</button>
+        </section>
+
+        <div class="status-bar">
+            <p id="message" class="message"></p>
+            <span id="guessCount" class="guess-count">Guesses: 0</span>
+        </div>
+
+        <section class="legend" aria-label="Color legend">
+            <span class="legend-item"><i class="swatch correct"></i> Exact match</span>
+            <span class="legend-item"><i class="swatch none"></i> Neither has it</span>
+            <span class="legend-item"><i class="swatch close"></i> Both have it, amount differs</span>
+            <span class="legend-item"><i class="swatch wrong"></i> No match</span>
+            <span class="legend-item">&#9650; the mystery item is higher &nbsp; &#9660; it is lower</span>
+            <span class="legend-item">Extra stat columns appear when a guess has a stat not shown yet</span>
+        </section>
+
+        <div id="hintBox" class="hint-box hidden"></div>
+
+        <div id="resultPanel" class="result-panel hidden"></div>
+
+        <div class="board-scroll">
+            <div id="board" class="board hidden">
+                <div id="headerRow" class="row header-row"></div>
+                <div id="rows"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer>
+        <p>A hint unlocks after 6 guesses.</p>
+    </footer>
+
+    <script src="app.js"></script>
+
+</body>
+</html>

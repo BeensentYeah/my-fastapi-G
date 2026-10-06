@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Item Rift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+    <h1>Item Rift</h1>
+    <div class="header-info">
+        <span id="roundLabel"></span>
+        <span id="turnLabel" class="turn-badge"></span>
+    </div>
+</header>
+
+<main>
+
+    <section class="combatants">
+        <div class="fighter" id="playerPanel">
+            <h2 id="playerName">Ezreal</h2>
+            <div class="card-art"><img id="playerCard" alt="Ezreal card" referrerpolicy="no-referrer"></div>
+            <div class="bar hp-bar"><div class="bar-fill" id="playerHpFill"></div></div>
+            <div class="bar-label" id="playerHpLabel"></div>
+            <div class="bar mana-bar"><div class="bar-fill" id="playerManaFill"></div></div>
+            <div class="bar-label" id="playerManaLabel"></div>
+            <div class="stat-grid" id="playerStats"></div>
+        </div>
+
+        <div class="vs">VS</div>
+
+        <div class="fighter" id="enemyPanel">
+            <h2 id="enemyName">???</h2>
+            <div class="card-art"><img id="enemyCard" alt="Enemy card" referrerpolicy="no-referrer"></div>
+            <div class="bar hp-bar"><div class="bar-fill" id="enemyHpFill"></div></div>
+            <div class="bar-label" id="enemyHpLabel"></div>
+            <div class="bar mana-bar ghost"><div class="bar-fill"></div></div>
+            <div class="bar-label ghost">&nbsp;</div>
+            <div class="stat-grid" id="enemyStats"></div>
+        </div>
+    </section>
+
+    <section class="log" id="battleLog"></section>
+
+    <div class="shop-overlay hidden" id="shopPanel">
+        <div class="shop-window" role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+            <div class="shop-top">
+                <h2 id="shopTitle">Shop</h2>
+                <div class="shop-gold">Gold: <span id="shopGold">0</span></div>
+            </div>
+            <p class="interest-note" id="interestNote"></p>
+            <p class="interest-note" id="oddsNote"></p>
+
+            <div class="section-head">
+                <h3 class="shop-section">Buy</h3>
+                <button id="rerollBtn" onclick="rerollShop()">Reroll</button>
+            </div>
+            <div class="shop-items" id="shopItems"></div>
+
+            <div class="section-head">
+                <h3 class="shop-section">Sell</h3>
+                <button id="undoBtn" onclick="undoSell()">Undo</button>
+            </div>
+            <div class="shop-items" id="sellItems"></div>
+
+            <button id="nextRoundBtn" onclick="startNextRound()">Next Round</button>
+        </div>
+    </div>
+
+    <div class="shop-overlay hidden" id="gameOverPanel">
+        <div class="shop-window select-window gameover" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+            <h2 id="gameOverTitle"></h2>
+            <div class="btn-row">
+                <button onclick="startRun()">Restart</button>
+                <button class="secondary" onclick="showCharacterSelect()">Select New Character</button>
+                <button class="secondary" onclick="showDifficultySelect()">Select Difficulty</button>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<footer class="hud" id="actionPanel">
+    <div class="ability-bar" id="abilityBar">
+        <button class="ability-slot" id="attackBtn" onclick="playerAction('attack')">
+            <span class="ability-key">A</span>
+            <span class="ability-icon">⚔</span>
+            <span class="ability-name">Attack</span>
+        </button>
+        <button class="ability-slot" id="qBtn" onclick="playerAction('q')" title="Skillshot. Physical damage: 160% AD + 15% AP. A hit lowers your other cooldowns by 1.">
+            <span class="ability-key">Q</span>
+            <span class="ability-icon">✦</span>
+            <span class="ability-name">Mystic Shot</span>
+            <span class="ability-cost">30</span>
+            <span class="ability-cd"></span>
+        </button>
+        <button class="ability-slot" id="wBtn" onclick="playerAction('w')" title="Skillshot. Marks the target; your next attack or ability that hits detonates it for magic damage: 90% AP + 20% AD.">
+            <span class="ability-key">W</span>
+            <span class="ability-icon">❖</span>
+            <span class="ability-name">Essence Flux</span>
+            <span class="ability-cost">40</span>
+            <span class="ability-cd"></span>
+        </button>
+        <button class="ability-slot" id="eBtn" onclick="playerAction('e')" title="Teleport. Ignores the next attack or ability against you and fires a bolt for magic damage: 70% AP + 50% AD.">
+            <span class="ability-key">E</span>
+            <span class="ability-icon">➜</span>
+            <span class="ability-name">Arcane Shift</span>
+            <span class="ability-cost">50</span>
+            <span class="ability-cd"></span>
+        </button>
+        <button class="ability-slot" id="rBtn" onclick="playerAction('r')" title="Skillshot. Huge magic damage: 110% AP + 100% AD.">
+            <span class="ability-key">R</span>
+            <span class="ability-icon">✹</span>
+            <span class="ability-name">Trueshot</span>
+            <span class="ability-cost">100</span>
+            <span class="ability-cd"></span>
+        </button>
+    </div>
+
+    <div class="inventory-bar">
+        <div class="inventory-grid" id="inventoryGrid"></div>
+        <div class="gold-display">
+            <svg class="coin" viewBox="0 0 20 20" width="16" height="16">
+                <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+                <circle cx="10" cy="10" r="3.5" fill="currentColor"/>
+            </svg>
+            <span id="goldAmount">0</span>
+        </div>
+    </div>
+</footer>
+
+<div class="shop-overlay" id="characterPanel">
+    <div class="shop-window select-window" role="dialog" aria-modal="true" aria-labelledby="characterTitle">
+        <h2 class="select-title" id="characterTitle">Choose Your Champion</h2>
+        <div class="choice-grid" id="characterChoices"></div>
+    </div>
+</div>
+
+<div class="shop-overlay hidden" id="difficultyPanel">
+    <div class="shop-window select-window" role="dialog" aria-modal="true" aria-labelledby="difficultyTitle">
+        <h2 class="select-title" id="difficultyTitle">Choose Difficulty</h2>
+        <p class="select-sub" id="difficultySub"></p>
+        <div class="choice-grid" id="difficultyChoices"></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
