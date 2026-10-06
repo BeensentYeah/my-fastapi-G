@@ -1,4 +1,4 @@
-const API_URL = "https://my-fastapi-g.vercel.app";
+const API_URL = "https://my-fastapi-g-api.vercel.app";
 const API_KEY = "student-api-key-123"
 
 const FETCH_OPTIONS = {
