@@ -1,2293 +1,457 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+"""
+League of Legends Item API
+==========================
+
+The item data lives in a Supabase (PostgreSQL) database. Nothing is hardcoded
+in this file: every request reads from or writes to the database.
+
+Security
+--------
+* No credentials in this file. Everything comes from environment variables.
+* Reads use the Supabase PUBLISHABLE key, which goes through the `anon` database
+  role, so the Row Level Security policies apply: it can read and nothing else.
+* Writes use the Supabase SECRET key, which bypasses Row Level Security. It is
+  only ever used inside this server, and only on endpoints that require the
+  admin key.
+* Reading requires the `x-api-key` header. Creating, updating and deleting
+  require `x-api-key` AND `x-admin-key`.
+* Database errors are logged on the server but never returned to the caller,
+  so table names, SQL and connection details are not leaked.
+
+Environment variables (see .env.example)
+----------------------------------------
+SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY, API_KEY, ADMIN_API_KEY
+"""
+
+import logging
+import os
+from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Depends, Header
-from datetime import datetime
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, model_validator
+from supabase import Client, create_client
 
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
+logger = logging.getLogger("item-api")
+logging.basicConfig(level=logging.INFO)
 
-#yeah
-#CONFIGURATION
-API_KEY = "student-api-key-123"
-API_VERSION = "1.0"
+API_VERSION = "2.0"
 
-app= FastAPI(
-    title="Lol Item API",
-    description="A beginner-friendly REST API",
-    version=API_VERSION
-
+app = FastAPI(
+    title="LoL Item API",
+    description="A REST API for League of Legends items, backed by a Supabase PostgreSQL database.",
+    version=API_VERSION,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],          # the three websites are static pages on different origins
+    allow_credentials=False,      # no cookies are used; "*" and credentials are not a valid pair
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
-class Item(BaseModel):
-    id: int
-    name: str = Field(min_length=1)
-    price: int = Field(ge=0)
-    category: Literal[
-        "Starter items",
-        "Consumable items",
-        "Boots",
-        "Basic items",
-        "Epic items",
-        "Legendary items"
-    ]
-    image: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-    sellPrice: int = Field(ge=0)
+# =====================================================================
+# 1. CONFIGURATION — read from the environment, never hardcoded
+# =====================================================================
 
-    attackDamage: Optional[float] = Field(default=0, ge=0)
-    abilityPower: Optional[float] = Field(default=0, ge=0)
-    attackSpeed: Optional[float] = Field(default=0, ge=0)
-    health: Optional[float] = Field(default=0, ge=0)
-    mana: Optional[float] = Field(default=0, ge=0)
-    armor: Optional[float] = Field(default=0, ge=0)
-    magicResist: Optional[float] = Field(default=0, ge=0)
-    critChance: Optional[float] = Field(default=0, ge=0)
-    abilityHaste: Optional[float] = Field(default=0, ge=0)
-    movementSpeed: Optional[float] = Field(default=0, ge=0)
-    lifeSteal: Optional[float] = Field(default=0, ge=0)
-    armorPenetration: Optional[float] = Field(default=0, ge=0)
-    magicPenetration: Optional[float] = Field(default=0, ge=0)
-    tenacity: Optional[float] = Field(default=0, ge=0)
-    omnivamp: Optional[float] = Field(default=0, ge=0)
+def _env(name: str) -> str:
+    """Return a required environment variable, or fail with a safe message."""
+    value = os.environ.get(name)
+    if not value:
+        logger.error("Missing required environment variable: %s", name)
+        raise HTTPException(status_code=500, detail="Server configuration error.")
+    return value
 
 
-items = [
-    {
-        "id": 1,
-        "name": "Doran's Blade",
-        "price": 450,
-        "category": "Starter items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1055.png",
-        "sellPrice": 315,
-        "attackDamage": 10,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 80,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 3.5,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Good starter item for physical damage champions."
-    },
-    {
-        "id": 2,
-        "name": "Health Potion",
-        "price": 50,
-        "category": "Consumable items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/2003.png",
-        "sellPrice": 20,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Consumes the potion to restore 120 Health over 15 seconds."
-    },
-    {
-        "id": 3,
-        "name": "Long Sword",
-        "price": 350,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1036.png",
-        "sellPrice": 245,
-        "attackDamage": 10,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Basic component item providing raw Attack Damage."
-    },
-    {
-        "id": 4,
-        "name": "Boots of Speed",
-        "price": 300,
-        "category": "Boots",  # Fixed from "Boot" to match Literal
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1001.png",
-        "sellPrice": 210,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 25,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Enhances Movement Speed."
-    },
-    {
-        "id": 5,
-        "name": "B. F. Sword",
-        "price": 1300,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1038.png",
-        "sellPrice": 910,
-        "attackDamage": 40,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Powerful component item required for high-tier physical damage weapons."
-    },
-    {
-        "id": 6,
-        "name": "Infinity Edge",
-        "price": 3400,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3031.png",
-        "sellPrice": 2380,
-        "attackDamage": 80,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 25,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Massively boosts attack damage and critical strike damage."
-    },
-    {
-        "id": 7,
-        "name": "Bloodthirster",
-        "price": 3400,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3072.png",
-        "sellPrice": 2380,
-        "attackDamage": 80,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 18,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants high attack damage, lifesteal, and a shield at full health."
-    },
-    {
-        "id": 8,
-        "name": "Rabadon's Deathcap",
-        "price": 3600,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3089.png",
-        "sellPrice": 2520,
-        "attackDamage": 0,
-        "abilityPower": 140,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Increases total Ability Power by 35%."
-    },
-    {
-        "id": 9,
-        "name": "Guardian Angel",
-        "price": 3200,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3026.png",
-        "sellPrice": 2240,
-        "attackDamage": 55,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 45,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Revives user upon taking fatal damage."
-    },
-    {
-        "id": 10,
-        "name": "Trinity Force",
-        "price": 3333,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3078.png",
-        "sellPrice": 2333,
-        "attackDamage": 45,
-        "abilityPower": 0,
-        "attackSpeed": 33,
-        "health": 300,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 20,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Empowers auto-attacks after casting abilities."
-    },
-    {
-        "id": 11,
-        "name": "Zhonya's Hourglass",
-        "price": 3250,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3157.png",
-        "sellPrice": 2275,
-        "attackDamage": 0,
-        "abilityPower": 120,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 50,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Puts user in Stasis for 2.5 seconds, becoming invulnerable."
-    },
-    {
-        "id": 12,
-        "name": "Kraken Slayer",
-        "price": 3100,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6672.png",
-        "sellPrice": 2170,
-        "attackDamage": 50,
-        "abilityPower": 0,
-        "attackSpeed": 40,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 7,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Deals bonus damage on every third auto-attack."
-    },
-    {
-        "id": 13,
-        "name": "Shadowflame",
-        "price": 3200,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/4645.png",
-        "sellPrice": 2240,
-        "attackDamage": 0,
-        "abilityPower": 115,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 12,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Magic damage and damage over time critically strike low-health enemies."
-    },
-    {
-        "id": 14,
-        "name": "Sterak's Gage",
-        "price": 3200,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3053.png",
-        "sellPrice": 2240,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 400,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 20,
-        "omnivamp": 0,
-        "description": "Grants bonus AD based on base AD and a huge shield when low health."
-    },
-    {
-        "id": 15,
-        "name": "Thornmail",
-        "price": 2700,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3075.png",
-        "sellPrice": 1890,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 350,
-        "mana": 0,
-        "armor": 70,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reflects magic damage back to attackers and applies Grievous Wounds."
-    },
-    {
-        "id": 16,
-        "name": "Bork (Blade of the Ruined King)",
-        "price": 3200,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3153.png",
-        "sellPrice": 2240,
-        "attackDamage": 50,
-        "abilityPower": 0,
-        "attackSpeed": 25,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 10,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "On-hit attacks deal current health percent damage and steal movement speed."
-    },
-    {
-        "id": 17,
-        "name": "Lich Bane",
-        "price": 3100,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3100.png",
-        "sellPrice": 2170,
-        "attackDamage": 0,
-        "abilityPower": 100,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 15,
-        "movementSpeed": 8,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "After casting an ability, your next auto-attack deals bonus AP damage."
-    },
-    {
-        "id": 18,
-        "name": "Lord Dominik's Regards",
-        "price": 3000,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3036.png",
-        "sellPrice": 2100,
-        "attackDamage": 45,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 25,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 40,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Provides armor penetration against high-armor targets."
-    },
-    {
-        "id": 19,
-        "name": "Jak'Sho, The Protean",
-        "price": 3200,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6665.png",
-        "sellPrice": 2240,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 300,
-        "mana": 0,
-        "armor": 50,
-        "magicResist": 50,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Gains increasing Armor and Magic Resist while in combat with champions."
-    },
-    {
-        "id": 20,
-        "name": "Luden's Companion",
-        "price": 3000,
-        "category": "Legendary items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6655.png",
-        "sellPrice": 2100,
-        "attackDamage": 0,
-        "abilityPower": 90,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 600,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 20,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Fires charges at targets upon dealing ability damage."
-    },
-    {
-        "id": 21,
-        "name": "Berserker's Greaves",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3006.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 35,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Enhanced Movement Speed and Attack Speed."
-    },
-    {
-        "id": 22,
-        "name": "Boots of Swiftness",
-        "price": 900,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3009.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 60,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reduces the effectiveness of slow effects on your champion."
-    },
-    {
-        "id": 23,
-        "name": "Ionian Boots of Lucidity",
-        "price": 900,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3158.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 15,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reduces Summoner Spell cooldowns and grants Ability Haste."
-    },
-    {
-        "id": 24,
-        "name": "Mercury's Treads",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3111.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 25,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 30,
-        "omnivamp": 0,
-        "description": "Grants Magic Resist and Tenacity, reducing the duration of stuns, slows, and other crowd control."
-    },
-    {
-        "id": 25,
-        "name": "Plated Steelcaps",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3047.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 20,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reduces incoming damage from basic attacks."
-    },
-    {
-        "id": 26,
-        "name": "Sorcerer's Shoes",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3020.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 18,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants Magic Penetration to pierce through enemy resistances."
-    },
-    {
-        "id": 27,
-        "name": "Armored Advance",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Armored_Advance_item.png?3d928",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 30,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants enhanced armor and mobility."
-    },
-    {
-        "id": 28,
-        "name": "Chainlaced Crushers",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Chainlaced_Crushers_item.png?c0063",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 25,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 30,
-        "omnivamp": 0,
-        "description": "Grants magic resistance and movement speed."
-    },
-    {
-        "id": 29,
-        "name": "Crimson Lucidity",
-        "price": 900,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Crimson_Lucidity_item.png?ff157",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 15,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability haste and movement speed."
-    },
-    {
-        "id": 30,
-        "name": "Gluttonous Greaves",
-        "price": 1000,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Gluttonous_Greaves_item.png?d560e",
-        "sellPrice": 700,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants lifesteal and movement speed."
-    },
-    {
-        "id": 31,
-        "name": "Gunmetal Greaves",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Gunmetal_Greaves_item.png?f5849",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 25,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack speed and movement speed."
-    },
-    {
-        "id": 32,
-        "name": "Immortal Path",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Immortal_Path_item.png?c2e5b",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 150,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants health and enhanced mobility."
-    },
-    {
-        "id": 33,
-        "name": "Spellslinger's Shoes",
-        "price": 1100,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Spellslinger%27s_Shoes_item.png?34992",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 30,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 45,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and movement speed."
-    },
-    {
-        "id": 34,
-        "name": "Swiftmarch",
-        "price": 1000,
-        "category": "Boots",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Swiftmarch_item.png?50274",
-        "sellPrice": 700,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 65,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants superior raw movement speed."
-    },
-    {
-        "id": 35,
-        "name": "Slightly Magical Boots",
-        "price": 0,
-        "category": "Boots",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/2422.png",
-        "sellPrice": 0,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 25,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Slightly more magical than standard boots. Grants a minor movement speed boost."
-    },
-    {
-        "id": 36,
-        "name": "Amplifying Tome",
-        "price": 400,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1052.png",
-        "sellPrice": 280,
-        "attackDamage": 0,
-        "abilityPower": 20,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power."
-    },
-    {
-        "id": 37,
-        "name": "Blasting Wand",
-        "price": 850,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1026.png",
-        "sellPrice": 595,
-        "attackDamage": 0,
-        "abilityPower": 45,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants moderate ability power."
-    },
-    {
-        "id": 38,
-        "name": "Cloak of Agility",
-        "price": 600,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1018.png",
-        "sellPrice": 420,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 15,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants critical strike chance."
-    },
-    {
-        "id": 39,
-        "name": "Cloth Armor",
-        "price": 300,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1029.png",
-        "sellPrice": 210,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 15,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants armor."
-    },
-    {
-        "id": 40,
-        "name": "Dagger",
-        "price": 300,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1042.png",
-        "sellPrice": 210,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 12,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack speed."
-    },
-    {
-        "id": 41,
-        "name": "Faerie Charm",
-        "price": 250,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1004.png",
-        "sellPrice": 175,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Improves mana regeneration."
-    },
-    {
-        "id": 42,
-        "name": "Glowing Mote",
-        "price": 250,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/2022.png",
-        "sellPrice": 175,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 5,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability haste."
-    },
-    {
-        "id": 43,
-        "name": "Needlessly Large Rod",
-        "price": 1250,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1058.png",
-        "sellPrice": 875,
-        "attackDamage": 0,
-        "abilityPower": 65,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants a large amount of ability power."
-    },
-    {
-        "id": 44,
-        "name": "Null-Magic Mantle",
-        "price": 450,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1033.png",
-        "sellPrice": 315,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 25,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants magic resistance."
-    },
-    {
-        "id": 45,
-        "name": "Pickaxe",
-        "price": 875,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1037.png",
-        "sellPrice": 612,
-        "attackDamage": 25,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage."
-    },
-    {
-        "id": 46,
-        "name": "Rejuvenation Bead",
-        "price": 300,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1006.png",
-        "sellPrice": 210,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Improves health regeneration."
-    },
-    {
-        "id": 47,
-        "name": "Ruby Crystal",
-        "price": 400,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1028.png",
-        "sellPrice": 280,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 150,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants health."
-    },
-    {
-        "id": 48,
-        "name": "Sapphire Crystal",
-        "price": 350,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1027.png",
-        "sellPrice": 245,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 250,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants mana."
-    },
-    {
-        "id": 49,
-        "name": "Aegis of the Legion",
-        "price": 1200,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3105.png",
-        "sellPrice": 840,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 30,
-        "magicResist": 30,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants armor and magic resistance."
-    },
-    {
-        "id": 50,
-        "name": "Aether Wisp",
-        "price": 850,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3113.png",
-        "sellPrice": 595,
-        "attackDamage": 0,
-        "abilityPower": 30,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 5,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and movement speed."
-    },
-    {
-        "id": 51,
-        "name": "Bami's Cinder",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6660.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 200,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Immolates nearby enemies with magic damage."
-    },
-    {
-        "id": 52,
-        "name": "Bandleglass Mirror",
-        "price": 1000,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/4642.png",
-        "sellPrice": 700,
-        "attackDamage": 0,
-        "abilityPower": 20,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 200,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 10,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power, mana, and ability haste."
-    },
-    {
-        "id": 53,
-        "name": "Blighting Jewel",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/4630.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 25,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 13,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and magic penetration."
-    },
-    {
-        "id": 54,
-        "name": "Bramble Vest",
-        "price": 800,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3076.png",
-        "sellPrice": 560,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 35,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reflects damage and inflicts Grievous Wounds on attackers."
-    },
-    {
-        "id": 55,
-        "name": "Caulfield's Warhammer",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3133.png",
-        "sellPrice": 770,
-        "attackDamage": 25,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 10,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and ability haste."
-    },
-    {
-        "id": 56,
-        "name": "Catalyst of Aeons",
-        "price": 1300,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Catalyst_of_Aeons_item.png?4f7f5",
-        "sellPrice": 910,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 300,
-        "mana": 300,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Restores mana when taking damage and health when spending mana."
-    },
-    {
-        "id": 57,
-        "name": "Chain Vest",
-        "price": 800,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1031.png",
-        "sellPrice": 560,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 40,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants significant armor."
-    },
-    {
-        "id": 58,
-        "name": "Crystalline Bracer",
-        "price": 600,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Crystalline_Bracer_item.png?d1ada",
-        "sellPrice": 420,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 200,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants health and health regeneration."
-    },
-    {
-        "id": 59,
-        "name": "Executioner's Calling",
-        "price": 800,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3123.png",
-        "sellPrice": 560,
-        "attackDamage": 15,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Applies Grievous Wounds to enemies upon dealing physical damage."
-    },
-    {
-        "id": 60,
-        "name": "Fated Ashes",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Fated_Ashes_item.png?c18bb",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 30,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Burns monsters and champions with ability damage over time."
-    },
-    {
-        "id": 61,
-        "name": "Fiendish Codex",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3108.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 35,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 15,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and ability haste."
-    },
-    {
-        "id": 62,
-        "name": "Forbidden Idol",
-        "price": 600,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3114.png",
-        "sellPrice": 420,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 5,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Improves heal and shield power."
-    },
-    {
-        "id": 63,
-        "name": "Glacial Buckler",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3024.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 250,
-        "armor": 20,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 10,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants armor, mana, and ability haste."
-    },
-    {
-        "id": 64,
-        "name": "Haunting Guise",
-        "price": 1300,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Haunting_Guise_item.png?8a9b1",
-        "sellPrice": 910,
-        "attackDamage": 0,
-        "abilityPower": 35,
-        "attackSpeed": 0,
-        "health": 200,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Amplifies damage over time during combat against champions."
-    },
-    {
-        "id": 65,
-        "name": "Hearthbound Axe",
-        "price": 1200,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Hearthbound_Axe_item.png?50ac8",
-        "sellPrice": 840,
-        "attackDamage": 20,
-        "abilityPower": 0,
-        "attackSpeed": 20,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage, attack speed, and basic attack mobility."
-    },
-    {
-        "id": 66,
-        "name": "Hexdrinker",
-        "price": 1300,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3155.png",
-        "sellPrice": 910,
-        "attackDamage": 30,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 35,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants a magic damage shield when taking heavy magic damage."
-    },
-    {
-        "id": 67,
-        "name": "Hextech Alternator",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3145.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 50,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Damaging enemy champions triggers bonus magic damage."
-    },
-    {
-        "id": 68,
-        "name": "Last Whisper",
-        "price": 1450,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3035.png",
-        "sellPrice": 1015,
-        "attackDamage": 20,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 18,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants armor penetration."
-    },
-    {
-        "id": 69,
-        "name": "Lost Chapter",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3802.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 40,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 300,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 10,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Restores mana upon leveling up."
-    },
-    {
-        "id": 70,
-        "name": "Negatron Cloak",
-        "price": 900,
-        "category": "Basic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1057.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 50,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants high magic resistance."
-    },
-    {
-        "id": 71,
-        "name": "Noonquiver",
-        "price": 1300,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/6670.png",
-        "sellPrice": 910,
-        "attackDamage": 30,
-        "abilityPower": 0,
-        "attackSpeed": 15,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Deals bonus physical damage to minions and monsters on-hit."
-    },
-    {
-        "id": 72,
-        "name": "Oblivion Orb",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3916.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 30,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Inflicts Grievous Wounds on enemy champions with magic damage."
-    },
-    {
-        "id": 73,
-        "name": "Phage",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3044.png",
-        "sellPrice": 770,
-        "attackDamage": 15,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 200,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants movement speed boost upon attacking units."
-    },
-    {
-        "id": 74,
-        "name": "Quicksilver Sash",
-        "price": 1300,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3140.png",
-        "sellPrice": 910,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 30,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Actively removes all crowd control debuffs."
-    },
-    {
-        "id": 75,
-        "name": "Rectrix",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Rectrix_item.png?bb085",
-        "sellPrice": 630,
-        "attackDamage": 20,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 4,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and movement speed."
-    },
-    {
-        "id": 76,
-        "name": "Recurve Bow",
-        "price": 700,
-        "category": "Basic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Recurve_Bow_item.png?904d7",
-        "sellPrice": 490,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 25,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Deals bonus on-hit physical damage."
-    },
-    {
-        "id": 77,
-        "name": "Scout's Slingshot",
-        "price": 600,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Scout%27s_Slingshot_item.png?47453",
-        "sellPrice": 420,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 20,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants high attack speed."
-    },
-    {
-        "id": 78,
-        "name": "Seeker's Armguard",
-        "price": 1600,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Seeker%27s_Armguard_item.png?703bc",
-        "sellPrice": 1120,
-        "attackDamage": 0,
-        "abilityPower": 45,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 25,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and armor."
-    },
-    {
-        "id": 79,
-        "name": "Serrated Dirk",
-        "price": 1000,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3134.png",
-        "sellPrice": 700,
-        "attackDamage": 20,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 10,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and lethality."
-    },
-    {
-        "id": 80,
-        "name": "Sheen",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3057.png",
-        "sellPrice": 630,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Empowers next basic attack after casting an ability."
-    },
-    {
-        "id": 81,
-        "name": "Spectre's Cowl",
-        "price": 1250,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3211.png",
-        "sellPrice": 875,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 250,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 25,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Regenerates health after taking damage from champions."
-    },
-    {
-        "id": 82,
-        "name": "Steel Sigil",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Steel_Sigil_item.png?e33d0",
-        "sellPrice": 770,
-        "attackDamage": 15,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 30,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and armor."
-    },
-    {
-        "id": 83,
-        "name": "The Brutalizer",
-        "price": 1337,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/The_Brutalizer_item.png?b8724",
-        "sellPrice": 935,
-        "attackDamage": 25,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 10,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 8,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage, ability haste, and lethality."
-    },
-    {
-        "id": 84,
-        "name": "Tiamat",
-        "price": 1200,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3077.png",
-        "sellPrice": 840,
-        "attackDamage": 20,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Basic attacks deal damage to units around the target."
-    },
-    {
-        "id": 85,
-        "name": "Tunneler",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Tunneler_item.png?6b875",
-        "sellPrice": 770,
-        "attackDamage": 15,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 250,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and health."
-    },
-    {
-        "id": 86,
-        "name": "Vampiric Scepter",
-        "price": 900,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/1053.png",
-        "sellPrice": 630,
-        "attackDamage": 15,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 10,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack damage and lifesteal."
-    },
-    {
-        "id": 87,
-        "name": "Verdant Barrier",
-        "price": 1600,
-        "category": "Epic items",
-        "image": "https://wiki.leagueoflegends.com/en-us/images/Verdant_Barrier_item.png?5a308",
-        "sellPrice": 1120,
-        "attackDamage": 0,
-        "abilityPower": 30,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 25,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants ability power and magic resistance."
-    },
-    {
-        "id": 88,
-        "name": "Warden's Mail",
-        "price": 1000,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3082.png",
-        "sellPrice": 700,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 0,
-        "health": 0,
-        "mana": 0,
-        "armor": 45,
-        "magicResist": 0,
-        "critChance": 0,
-        "abilityHaste": 0,
-        "movementSpeed": 0,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Reduces incoming damage from basic attacks."
-    },
-    {
-        "id": 89,
-        "name": "Zeal",
-        "price": 1100,
-        "category": "Epic items",
-        "image": "https://ddragon.leagueoflegends.com/cdn/14.1.1/img/item/3086.png",
-        "sellPrice": 770,
-        "attackDamage": 0,
-        "abilityPower": 0,
-        "attackSpeed": 15,
-        "health": 0,
-        "mana": 0,
-        "armor": 0,
-        "magicResist": 0,
-        "critChance": 15,
-        "abilityHaste": 0,
-        "movementSpeed": 4,
-        "lifeSteal": 0,
-        "armorPenetration": 0,
-        "magicPenetration": 0,
-        "tenacity": 0,
-        "omnivamp": 0,
-        "description": "Grants attack speed, critical strike chance, and movement speed."
-    }
+@lru_cache(maxsize=1)
+def read_client() -> Client:
+    """Supabase client for reads. Publishable key -> anon role -> RLS applies."""
+    return create_client(_env("SUPABASE_URL"), _env("SUPABASE_PUBLISHABLE_KEY"))
 
-]
 
-items = [Item(**item) for item in items]
+@lru_cache(maxsize=1)
+def write_client() -> Client:
+    """Supabase client for writes. Secret key -> bypasses RLS. Server-side only."""
+    return create_client(_env("SUPABASE_URL"), _env("SUPABASE_SECRET_KEY"))
+
+
+# =====================================================================
+# 2. AUTHENTICATION
+# =====================================================================
 
 def verify_api_key(x_api_key: Optional[str] = Header(default=None)):
-    if x_api_key != API_KEY:
+    """Every /api/v1 endpoint needs this. 401 when it is missing or wrong."""
+    if x_api_key != _env("API_KEY"):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+    return True
+
+
+def verify_admin_key(
+    _: bool = Depends(verify_api_key),
+    x_admin_key: Optional[str] = Header(default=None),
+):
+    """
+    Create / update / delete need this as well as the normal API key.
+    401 means "not identified", 403 means "identified but not allowed to write".
+    """
+    if x_admin_key != _env("ADMIN_API_KEY"):
         raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing API key."
+            status_code=403,
+            detail="This action requires an administrator key.",
         )
     return True
 
-# ============================================================
-# HEALTH CHECK (Public)
-# ============================================================
+
+# =====================================================================
+# 3. DATABASE ERRORS -> safe HTTP responses
+# =====================================================================
+
+# PostgreSQL error codes we can turn into a helpful message.
+_CONSTRAINT_CODES = {
+    "23503": "Unknown category.",
+    "23514": "A value is outside the allowed range.",
+    "23502": "A required field is missing.",
+    "22P02": "A value has the wrong type.",
+    "22003": "A number is too large.",
+}
+
+
+def db_error(exc: Exception, action: str) -> HTTPException:
+    """
+    Log the real error, return a generic one.
+    The caller never sees SQL, table names, hostnames or stack traces.
+    """
+    code = str(getattr(exc, "code", "") or "")
+    logger.error("Database error during %s (code=%s): %s", action, code, exc)
+
+    if code == "23505":
+        return HTTPException(status_code=409, detail="An item with that name already exists.")
+    if code in _CONSTRAINT_CODES:
+        return HTTPException(status_code=400, detail=_CONSTRAINT_CODES[code])
+
+    text = str(exc).lower()
+    if any(word in text for word in ("connect", "timeout", "timed out", "network", "temporarily")):
+        return HTTPException(status_code=503, detail="The database is temporarily unavailable. Please try again.")
+
+    return HTTPException(status_code=500, detail="An unexpected error occurred.")
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request, exc: RequestValidationError):
+    """Malformed input returns 400 with a readable message instead of FastAPI's 422."""
+    problems = []
+    for err in exc.errors():
+        field = ".".join(str(p) for p in err.get("loc", []) if p not in ("body", "query", "path"))
+        problems.append(f"{field or 'request'}: {err.get('msg', 'invalid value')}")
+    return JSONResponse(status_code=400, content={"detail": "Invalid input. " + "; ".join(problems)})
+
+
+# =====================================================================
+# 4. DATA MODELS — validation happens here, before anything is stored
+# =====================================================================
+
+STAT_FIELDS = {
+    "attackDamage": "attack_damage",
+    "abilityPower": "ability_power",
+    "attackSpeed": "attack_speed",
+    "health": "health",
+    "mana": "mana",
+    "armor": "armor",
+    "magicResist": "magic_resist",
+    "critChance": "crit_chance",
+    "abilityHaste": "ability_haste",
+    "movementSpeed": "movement_speed",
+    "lifeSteal": "life_steal",
+    "armorPenetration": "armor_penetration",
+    "magicPenetration": "magic_penetration",
+    "tenacity": "tenacity",
+    "omnivamp": "omnivamp",
+}
+
+
+class ItemCreate(BaseModel):
+    """Body for POST and PUT. Every field is checked before it reaches the database."""
+    model_config = {"extra": "forbid"}      # reject unknown fields instead of ignoring them
+
+    name: str = Field(min_length=1, max_length=100)
+    price: int = Field(ge=0, le=100000)
+    sellPrice: int = Field(ge=0, le=100000)
+    category: str = Field(min_length=1, max_length=50)
+    image: str = Field(min_length=1, max_length=500)
+    description: str = Field(min_length=1, max_length=1000)
+
+    attackDamage: float = Field(default=0, ge=0, le=10000)
+    abilityPower: float = Field(default=0, ge=0, le=10000)
+    attackSpeed: float = Field(default=0, ge=0, le=10000)
+    health: float = Field(default=0, ge=0, le=10000)
+    mana: float = Field(default=0, ge=0, le=10000)
+    armor: float = Field(default=0, ge=0, le=10000)
+    magicResist: float = Field(default=0, ge=0, le=10000)
+    critChance: float = Field(default=0, ge=0, le=10000)
+    abilityHaste: float = Field(default=0, ge=0, le=10000)
+    movementSpeed: float = Field(default=0, ge=0, le=10000)
+    lifeSteal: float = Field(default=0, ge=0, le=10000)
+    armorPenetration: float = Field(default=0, ge=0, le=10000)
+    magicPenetration: float = Field(default=0, ge=0, le=10000)
+    tenacity: float = Field(default=0, ge=0, le=10000)
+    omnivamp: float = Field(default=0, ge=0, le=10000)
+
+    @model_validator(mode="after")
+    def sell_price_not_above_price(self):
+        if self.sellPrice > self.price:
+            raise ValueError("sellPrice cannot be greater than price")
+        return self
+
+
+class ItemPatch(BaseModel):
+    """Body for PATCH. Everything optional: only the fields sent are changed."""
+    model_config = {"extra": "forbid"}
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    price: Optional[int] = Field(default=None, ge=0, le=100000)
+    sellPrice: Optional[int] = Field(default=None, ge=0, le=100000)
+    category: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    image: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    description: Optional[str] = Field(default=None, min_length=1, max_length=1000)
+
+    attackDamage: Optional[float] = Field(default=None, ge=0, le=10000)
+    abilityPower: Optional[float] = Field(default=None, ge=0, le=10000)
+    attackSpeed: Optional[float] = Field(default=None, ge=0, le=10000)
+    health: Optional[float] = Field(default=None, ge=0, le=10000)
+    mana: Optional[float] = Field(default=None, ge=0, le=10000)
+    armor: Optional[float] = Field(default=None, ge=0, le=10000)
+    magicResist: Optional[float] = Field(default=None, ge=0, le=10000)
+    critChance: Optional[float] = Field(default=None, ge=0, le=10000)
+    abilityHaste: Optional[float] = Field(default=None, ge=0, le=10000)
+    movementSpeed: Optional[float] = Field(default=None, ge=0, le=10000)
+    lifeSteal: Optional[float] = Field(default=None, ge=0, le=10000)
+    armorPenetration: Optional[float] = Field(default=None, ge=0, le=10000)
+    magicPenetration: Optional[float] = Field(default=None, ge=0, le=10000)
+    tenacity: Optional[float] = Field(default=None, ge=0, le=10000)
+    omnivamp: Optional[float] = Field(default=None, ge=0, le=10000)
+
+
+# =====================================================================
+# 5. CATEGORIES — loaded from the database, cached per server instance
+# =====================================================================
+
+@lru_cache(maxsize=1)
+def category_map() -> dict:
+    """{'basic': 'Basic items', ...} read from the categories table."""
+    try:
+        rows = read_client().table("categories").select("id, name").order("id").execute().data
+    except Exception as exc:
+        raise db_error(exc, "loading categories")
+    return {row["id"]: row["name"] for row in rows}
+
+
+def category_id_for(display_name: str) -> str:
+    """Turn 'Basic items' into 'basic'. 400 with the allowed values if unknown."""
+    for cid, name in category_map().items():
+        if name.lower() == display_name.strip().lower():
+            return cid
+    allowed = ", ".join(sorted(category_map().values()))
+    raise HTTPException(status_code=400, detail=f"Unknown category. Allowed values: {allowed}.")
+
+
+# =====================================================================
+# 6. ROW -> API SHAPE
+#    The database uses snake_case; the three websites expect camelCase and
+#    the category display name, so every row is translated here.
+# =====================================================================
+
+def to_api(row: dict) -> dict:
+    out = {
+        "id": row["id"],
+        "name": row["name"],
+        "price": row["price"],
+        "category": category_map().get(row["category_id"], row["category_id"]),
+        "image": row["image"],
+        "description": row.get("description") or "",
+        "sellPrice": row["sell_price"],
+    }
+    for camel, snake in STAT_FIELDS.items():
+        out[camel] = row.get(snake, 0)
+    return out
+
+
+def to_row(data: dict) -> dict:
+    """The reverse: an API body becomes database columns."""
+    row = {}
+    if "name" in data:
+        row["name"] = data["name"].strip()
+    if "price" in data:
+        row["price"] = data["price"]
+    if "sellPrice" in data:
+        row["sell_price"] = data["sellPrice"]
+    if "category" in data:
+        row["category_id"] = category_id_for(data["category"])
+    if "image" in data:
+        row["image"] = data["image"].strip()
+    if "description" in data:
+        row["description"] = data["description"].strip()
+    for camel, snake in STAT_FIELDS.items():
+        if camel in data:
+            row[snake] = data[camel]
+    return row
+
+
+def fetch_item_or_404(item_id: int) -> dict:
+    try:
+        rows = read_client().table("items").select("*").eq("id", item_id).limit(1).execute().data
+    except Exception as exc:
+        raise db_error(exc, f"reading item {item_id}")
+    if not rows:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    return rows[0]
+
+
+# =====================================================================
+# 7. HEALTH CHECK (public)
+# =====================================================================
+
 @app.get("/health")
 def health_check():
+    """Also reports whether the database can be reached."""
+    database = "connected"
+    status = "ok"
+    try:
+        read_client().table("items").select("id").limit(1).execute()
+    except Exception as exc:
+        logger.error("Health check could not reach the database: %s", exc)
+        database = "unreachable"
+        status = "degraded"
+
     return {
-        "status": "ok",
+        "status": status,
         "service": "League of Legends Item API",
         "version": API_VERSION,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "database": database,
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
 
-# ============================================================
-# GET ALL ITEMS (Protected)
-# ============================================================
+# =====================================================================
+# 8. READ ENDPOINTS
+# =====================================================================
+
+@app.get("/api/v1/categories", dependencies=[Depends(verify_api_key)])
+def get_categories():
+    data = category_map()
+    return {"count": len(data), "categories": sorted(data.values())}
+
+
 @app.get("/api/v1/items", dependencies=[Depends(verify_api_key)])
-def get_items():
-    return {
-        "count": len(items),
-        "items": items
-    }
+def get_items(category: Optional[str] = Query(default=None, max_length=50)):
+    """All items, oldest id first. Optional ?category=Basic items filter."""
+    try:
+        query = read_client().table("items").select("*").order("id")
+        if category:
+            query = query.eq("category_id", category_id_for(category))
+        rows = query.execute().data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise db_error(exc, "listing items")
+
+    return {"count": len(rows), "items": [to_api(r) for r in rows]}
 
 
-# ============================================================
-# SEARCH ITEMS (Protected)
-# ============================================================
 @app.get("/api/v1/items/search", dependencies=[Depends(verify_api_key)])
-def search_items(q: str= Query(..., min_length=1)):
+def search_items(q: str = Query(..., min_length=1, max_length=100)):
+    """
+    Searches name, price, category, description and every stat.
+    The work is done by the search_items() function inside PostgreSQL, and the
+    search text is passed as a parameter, so it cannot change the query.
+    """
     q = q.lower()
-    results = []
+    try:
+        rows = read_client().rpc("search_items", {"q": q}).execute().data or []
+    except Exception as exc:
+        raise db_error(exc, "searching items")
 
-    for item in items:
-        searchable_text = (
-            f"{item.name} "
-            f"{item.price} "
-            f"{item.category} "
-            f"{item.description} "
-            f"{item.attackDamage} "
-            f"{item.abilityPower} "
-            f"{item.attackSpeed} "
-            f"{item.health} "
-            f"{item.mana} "
-            f"{item.armor} "
-            f"{item.magicResist} "
-            f"{item.critChance} "
-            f"{item.abilityHaste} "
-            f"{item.movementSpeed} "
-            f"{item.lifeSteal} "
-            f"{item.armorPenetration} "
-            f"{item.magicPenetration} "
-            f"{item.tenacity} "
-            f"{item.omnivamp}"
-        ).lower()
-
-        if q in searchable_text:
-            results.append(item)
-
-    return {
-        "query": q,
-        "count": len(results),
-        "results": results
-    }
+    return {"query": q, "count": len(rows), "results": [to_api(r) for r in rows]}
 
 
-# ============================================================
-# GET ONE ITEM (Protected)
-# ============================================================
 @app.get("/api/v1/items/{item_id}", dependencies=[Depends(verify_api_key)])
 def get_item(item_id: int):
-    for item in items:
-        if item.id == item_id:
-            return item
+    return to_api(fetch_item_or_404(item_id))
 
-    raise HTTPException(
-        status_code=404,
-        detail="Item not found."
-    )
+
+# =====================================================================
+# 9. WRITE ENDPOINTS — require the admin key
+# =====================================================================
+
+@app.post("/api/v1/items", status_code=201, dependencies=[Depends(verify_admin_key)])
+def create_item(item: ItemCreate):
+    """Creates an item. The database assigns the new id."""
+    row = to_row(item.model_dump())
+    try:
+        created = write_client().table("items").insert(row).execute().data
+    except Exception as exc:
+        raise db_error(exc, "creating an item")
+
+    if not created:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+    return to_api(created[0])
+
+
+@app.put("/api/v1/items/{item_id}", dependencies=[Depends(verify_admin_key)])
+def replace_item(item_id: int, item: ItemCreate):
+    """Replaces every field of an existing item."""
+    fetch_item_or_404(item_id)                    # 404 before attempting the write
+    row = to_row(item.model_dump())
+    try:
+        updated = write_client().table("items").update(row).eq("id", item_id).execute().data
+    except Exception as exc:
+        raise db_error(exc, f"replacing item {item_id}")
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    return to_api(updated[0])
+
+
+@app.patch("/api/v1/items/{item_id}", dependencies=[Depends(verify_admin_key)])
+def update_item(item_id: int, changes: ItemPatch):
+    """Changes only the fields that were sent."""
+    existing = fetch_item_or_404(item_id)
+
+    sent = changes.model_dump(exclude_none=True)
+    if not sent:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+
+    # sellPrice must still not exceed price once the change is applied
+    new_price = sent.get("price", existing["price"])
+    new_sell = sent.get("sellPrice", existing["sell_price"])
+    if new_sell > new_price:
+        raise HTTPException(status_code=400, detail="Invalid input. sellPrice cannot be greater than price.")
+
+    row = to_row(sent)
+    try:
+        updated = write_client().table("items").update(row).eq("id", item_id).execute().data
+    except Exception as exc:
+        raise db_error(exc, f"updating item {item_id}")
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    return to_api(updated[0])
+
+
+@app.delete("/api/v1/items/{item_id}", dependencies=[Depends(verify_admin_key)])
+def delete_item(item_id: int):
+    """Deletes an item and returns what was removed."""
+    fetch_item_or_404(item_id)
+    try:
+        deleted = write_client().table("items").delete().eq("id", item_id).execute().data
+    except Exception as exc:
+        raise db_error(exc, f"deleting item {item_id}")
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Item not found.")
+    return {"message": "Item deleted.", "item": to_api(deleted[0])}
