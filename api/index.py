@@ -9,7 +9,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 
-
+#yeah
 #CONFIGURATION
 API_KEY = "student-api-key-123"
 API_VERSION = "1.0"
