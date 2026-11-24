@@ -27,7 +27,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.exceptions import RequestValidationError
@@ -47,12 +47,53 @@ app = FastAPI(
     version=API_VERSION,
 )
 
+# ---------------------------------------------------------------------
+# Which browser origins may call this API.
+#
+# CORS is a rule browsers enforce, not an access control: curl, Postman and
+# any server ignore it entirely. Naming this project's own pages stops
+# ANOTHER website's JavaScript from using this API inside a visitor's
+# browser, which is worth doing because the read key is visible in the
+# three sites' source. The controls that actually restrict access are Row
+# Level Security on the database (the anon role may only SELECT) and the
+# administrator key required by every write endpoint.
+#
+# The list can be changed without editing code: set ALLOWED_ORIGINS in
+# Vercel to a comma-separated list of origins. Setting it to "*" restores
+# the old allow-everyone behaviour.
+#
+# Note: a page opened straight from disk has the origin "null", so local
+# file:// testing of anything that calls this API no longer works. Test on
+# the deployed sites instead.
+# ---------------------------------------------------------------------
+
+DEFAULT_ALLOWED_ORIGINS = [
+    "https://my-fastapi-g-1stwebsite.vercel.app",   # Item Shop
+    "https://my-fastapi-g-2ndwebsite.vercel.app",   # Item Rift
+    "https://my-fastapi-g-3rdwebsite.vercel.app",   # Itemdle
+    "https://my-fastapi-g-api.vercel.app",          # the three sites are served here too
+]
+
+
+def allowed_origins() -> List[str]:
+    """ALLOWED_ORIGINS from the environment, falling back to the four above."""
+    configured = [
+        origin.strip().rstrip("/")
+        for origin in os.environ.get("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    return configured or DEFAULT_ALLOWED_ORIGINS
+
+
+ALLOWED_ORIGINS = allowed_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # the three websites are static pages on different origins
-    allow_credentials=False,      # no cookies are used; "*" and credentials are not a valid pair
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,      # no cookies are used
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    # Only the headers the sites and the admin tools actually send.
+    allow_headers=["x-api-key", "x-admin-key", "content-type"],
 )
 
 
