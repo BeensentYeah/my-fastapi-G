@@ -51,10 +51,19 @@
     transition: color 0.15s, background-color 0.15s, border-color 0.15s;
 }
 
-.account-link:hover {
+.account-link:not(.is-current):hover {
     color: var(--account-gold-bright);
     background: var(--account-panel-2);
     border-color: var(--account-gold);
+}
+
+/* The site you are already on. Shown so all three are always present, but it
+   is not a link and does not react to the pointer. */
+.account-link.is-current {
+    color: var(--account-gold-bright);
+    background: rgba(200, 170, 110, 0.14);
+    border-color: var(--account-gold);
+    cursor: default;
 }
 
 /* The menu is positioned against this, so it stays under the avatar. */
