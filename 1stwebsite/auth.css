@@ -177,20 +177,6 @@
     background: rgba(240, 138, 152, 0.1);
 }
 
-/* Marks a row that is in place but not wired up yet. */
-.account-soon {
-    flex: none;
-    padding: 1px 6px;
-    font-size: 10px;
-    font-style: normal;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: #6b7c88;
-    border: 1px solid var(--account-line);
-    border-radius: 999px;
-}
-
 .account-menu-rule {
     height: 0;
     margin: 6px 2px;
@@ -198,10 +184,328 @@
     border-top: 1px solid var(--account-line);
 }
 
-.account-menu-note {
-    margin: 8px 2px 2px;
-    font-size: 12px;
+/* ---- stats panel ----------------------------------------------------- */
+
+.account-stats, .account-stats * { box-sizing: border-box; }
+
+.account-stats {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(3, 7, 10, 0.88);
+    backdrop-filter: blur(4px);
+}
+
+.account-stats.hidden { display: none; }
+
+.account-stats-card {
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 22px 24px 24px;
+    font-family: "Barlow", "Segoe UI", sans-serif;
+    font-size: 14px;
+    color: var(--account-text);
+    background: var(--account-panel);
+    border: 1px solid var(--account-gold);
+    border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7);
+}
+
+.account-stats-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+}
+
+.account-stats-head h2 {
+    margin: 0;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 20px;
+    color: var(--account-gold-bright);
+}
+
+.account-stats-close {
+    flex: none;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--account-text);
+    background: transparent;
+    border: 1px solid var(--account-line);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.account-stats .account-stats-close:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+}
+
+.account-stats-who {
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    background: var(--account-panel-2);
+    border: 1px solid var(--account-line);
+    border-radius: 6px;
+}
+
+.account-stats-who strong {
+    display: block;
+    font-size: 16px;
+    color: var(--account-gold-bright);
+}
+
+.account-stats-who span { font-size: 12px; color: #6b7c88; }
+
+.account-stats-section {
+    margin: 0 0 8px;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--account-gold);
+}
+
+.account-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.account-stat {
+    padding: 10px 8px;
+    text-align: center;
+    background: #081118;
+    border: 1px solid var(--account-line);
+    border-left: 2px solid var(--account-gold-dim, rgba(200, 170, 110, 0.25));
+    border-radius: 4px;
+}
+
+.account-stat b {
+    display: block;
+    font-size: 20px;
+    line-height: 1.2;
+    color: var(--account-text-strong);
+}
+
+.account-stat span {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
     color: #6b7c88;
+}
+
+.account-stats-label {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--account-gold);
+}
+
+.account-champs { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.account-champs span {
+    padding: 4px 10px;
+    font-size: 13px;
+    background: var(--account-panel-2);
+    border: 1px solid var(--account-line);
+    border-radius: 999px;
+}
+
+.account-champs b { color: var(--account-gold-bright); }
+
+.account-stats-msg {
+    margin: 0 0 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #6b7c88;
+}
+
+@media (max-width: 420px) {
+    .account-stat-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---- report panel ---------------------------------------------------- */
+
+.account-report, .account-report * { box-sizing: border-box; }
+
+.account-report {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(3, 7, 10, 0.88);
+    backdrop-filter: blur(4px);
+}
+
+.account-report.hidden { display: none; }
+
+.account-report-card {
+    width: 100%;
+    max-width: 440px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 22px 24px 24px;
+    font-family: "Barlow", "Segoe UI", sans-serif;
+    font-size: 14px;
+    color: var(--account-text);
+    background: var(--account-panel);
+    border: 1px solid var(--account-gold);
+    border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7);
+}
+
+.account-report-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.account-report-head h2 {
+    margin: 0;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 20px;
+    color: var(--account-gold-bright);
+}
+
+.account-report-close {
+    flex: none;
+    padding: 5px 10px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--account-text);
+    background: transparent;
+    border: 1px solid var(--account-line);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.account-report .account-report-close:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+}
+
+.account-report-intro {
+    margin: 0 0 18px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* the Bug / Idea / Something else buttons */
+.account-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.account-kind {
+    flex: none;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--account-text);
+    background: transparent;
+    border: 1px solid var(--account-line);
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.account-report .account-kind:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+}
+
+.account-report .account-kind.is-on {
+    color: #0b1319;
+    background: var(--account-gold);
+    border-color: var(--account-gold);
+}
+
+.account-report .account-field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    color: var(--account-text-strong);
+    background: #081118;
+    border: 1px solid var(--account-line);
+    border-radius: 3px;
+}
+
+.account-report .account-field textarea:focus {
+    outline: none;
+    border-color: var(--account-gold);
+}
+
+.account-report-count {
+    margin: -8px 0 12px;
+    font-size: 12px;
+    text-align: right;
+    color: #6b7c88;
+}
+
+/* the confirmation */
+.account-report-done { padding: 8px 0 4px; text-align: center; }
+
+.account-report-tick {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 10px;
+    color: #4ade80;
+}
+
+.account-report-done h3 {
+    margin: 0 0 6px;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 19px;
+    color: var(--account-gold-bright);
+}
+
+.account-report-done p {
+    margin: 0 auto 18px;
+    max-width: 30ch;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.account-report-actions { display: flex; gap: 8px; }
+
+.account-report-actions .account-primary,
+.account-report-actions .account-ghost { margin-top: 0; }
+
+/* Scoped so the games' own button:hover rule cannot win against these. */
+.account-report .account-primary:hover:not(:disabled) {
+    color: #0b1319;
+    background: var(--account-gold-bright);
+    border-color: var(--account-gold-bright);
+}
+
+.account-report .account-ghost:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
 }
 
 /* ---- sign-in screen -------------------------------------------------- */

@@ -415,6 +415,13 @@ function makeGuess(item) {
 
 function endGame(won) {
     gameOver = true;
+
+    // Save the result to the account. Accounts handles the rest: this call does
+    // nothing at all when nobody is signed in, so there is no check to make here.
+    if (typeof Accounts !== "undefined") {
+        Accounts.recordItemdleGame({ won, guesses: guesses.length });
+    }
+
     setControlsDisabled(true);
     hideSuggestions();
 

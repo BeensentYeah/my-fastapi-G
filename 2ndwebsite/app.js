@@ -186,6 +186,7 @@ let character = CHARACTERS[0];
 let difficulty = DIFFICULTIES[0];
 let combatBuffs = { attackSpeed: 0 };   // reset at the start of every combat
 let spellForceStacks = 0;               // Ezreal's passive
+let runRecorded = false;                // a finished run is only saved once
 
 function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, ch => ({
@@ -769,6 +770,7 @@ async function winCombat() {
     if (roundIndex >= enemies.length - 1) {
         logMessage(`${enemy.name} defeated!`);
         render();
+        recordRun(true);
         document.getElementById("gameOverTitle").textContent = "You cleared the Rift!";
         document.getElementById("gameOverPanel").classList.remove("hidden");
         return;
@@ -794,8 +796,25 @@ async function winCombat() {
     openShop();
 }
 
+// Saves a finished run to the account. A cleared run can arrive here by two
+// different routes, so the flag makes sure it is only counted once.
+function recordRun(won) {
+    if (runRecorded) return;
+    runRecorded = true;
+
+    if (typeof Accounts !== "undefined") {
+        Accounts.recordRiftRun({
+            won,
+            round: Math.min(roundIndex + 1, enemies.length),
+            gold,
+            champion: character.name
+        });
+    }
+}
+
 function loseCombat() {
     combatOver = true;
+    recordRun(false);
     document.getElementById("abilityBar").classList.add("hidden");
     document.getElementById("gameOverPanel").classList.remove("hidden");
     document.getElementById("gameOverTitle").textContent = `Defeated by ${enemy.name}`;
@@ -1105,6 +1124,7 @@ function startNextRound() {
     roundIndex++;
 
     if (roundIndex >= enemies.length) {
+        recordRun(true);
         document.getElementById("shopPanel").classList.add("hidden");
         document.getElementById("gameOverPanel").classList.remove("hidden");
         document.getElementById("gameOverTitle").textContent = "You cleared the Rift!";
@@ -1138,6 +1158,7 @@ function buildEnemies(count) {
 }
 
 function resetRun() {
+    runRecorded = false;
     equippedItems = [];
     gold = 1300;
     roundIndex = 0;
