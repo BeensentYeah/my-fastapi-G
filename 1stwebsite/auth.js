@@ -103,7 +103,9 @@ const Accounts = (() => {
         settings: `<circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/>`,
         report:   `<path d="M14 10a1.5 1.5 0 0 1-1.5 1.5H5.5L2.5 14V3.5A1.5 1.5 0 0 1 4 2h8.5A1.5 1.5 0 0 1 14 3.5z"/><path d="M8 5v3"/><path d="M8 9.6v.01"/>`,
         signin:   `<path d="M6.5 2.5h5a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-5"/><path d="M8.5 8h-7m0 0 2.4-2.4M1.5 8l2.4 2.4"/>`,
-        logout:   `<path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5"/><path d="M14.5 8h-7m7 0-2.4-2.4M14.5 8l-2.4 2.4"/>`
+        logout:   `<path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5"/><path d="M14.5 8h-7m7 0-2.4-2.4M14.5 8l-2.4 2.4"/>`,
+        eye:      `<path d="M1.3 8S3.9 3.4 8 3.4 14.7 8 14.7 8 12.1 12.6 8 12.6 1.3 8 1.3 8z"/><circle cx="8" cy="8" r="2.2"/>`,
+        eyeOff:   `<path d="M6.3 3.7A6.5 6.5 0 0 1 8 3.4C12.1 3.4 14.7 8 14.7 8a12 12 0 0 1-2.2 2.7M9.8 9.9a2.2 2.2 0 0 1-3.1-3.1"/><path d="M4.4 4.9A12 12 0 0 0 1.3 8S3.9 12.6 8 12.6c.7 0 1.3-.1 1.9-.3"/><path d="M2.2 2.2l11.6 11.6"/>`
     };
 
     const icon = name =>
@@ -592,7 +594,13 @@ const Accounts = (() => {
                     </label>
                     <label class="account-field">
                         <span>Password</span>
-                        <input type="password" id="accountPassword" required minlength="6" autocomplete="current-password">
+                        <span class="account-pw">
+                            <input type="password" id="accountPassword" required minlength="6" autocomplete="current-password">
+                            <button type="button" class="account-pw-toggle" id="accountPwToggle"
+                                    aria-label="Show password" aria-pressed="false" tabindex="0">
+                                ${icon("eye")}
+                            </button>
+                        </span>
                     </label>
 
                     <p class="account-error" id="accountError" hidden></p>
@@ -645,6 +653,34 @@ const Accounts = (() => {
             closeGate();
             renderBar();
         };
+
+        // Show / hide the password. type="button" so it never submits the form,
+        // and the caret is put back where it was so typing can carry on.
+        document.getElementById("accountPwToggle").onclick = function () {
+            const input = document.getElementById("accountPassword");
+            const showing = input.type === "text";
+            const at = input.selectionStart;
+
+            input.type = showing ? "password" : "text";
+            this.innerHTML = icon(showing ? "eye" : "eyeOff");
+            this.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+            this.setAttribute("aria-pressed", String(!showing));
+
+            input.focus();
+            try { input.setSelectionRange(at, at); } catch (e) { /* not supported while type=text swaps */ }
+        };
+    }
+
+    // A password left visible from a previous visit should not still be on
+    // screen the next time the panel opens.
+    function hidePassword() {
+        const input = document.getElementById("accountPassword");
+        const btn = document.getElementById("accountPwToggle");
+        if (!input || !btn) return;
+        input.type = "password";
+        btn.innerHTML = icon("eye");
+        btn.setAttribute("aria-label", "Show password");
+        btn.setAttribute("aria-pressed", "false");
     }
 
     function showError(message) {
@@ -669,6 +705,7 @@ const Accounts = (() => {
 
     const openGate = (manual = false) => {
         document.getElementById("accountGate").classList.remove("hidden");
+        hidePassword();
         document.getElementById("accountSub").textContent = manual
             ? "Sign in to start saving your progress."
             : "Sign in to save your progress across all three sites.";
