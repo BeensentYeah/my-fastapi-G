@@ -82,13 +82,13 @@ const CHARACTERS = [
             text: "If you take no damage during the enemy's turn, you heal 5% of your maximum health."
         },
         abilities: {
-            q: { name: "Decisive Strike", icon: "➤", cost: 0, cd: 2, base: 30, ad: 1.4, ap: 0, type: "physical", undodgeable: true, canCrit: true, effect: "strike",
+            q: { name: "Decisive Strike", icon: "➤", cost: 0, cd: 4, base: 30, ad: 1.4, ap: 0, type: "physical", undodgeable: true, canCrit: true, effect: "strike",
                  tip: "An empowered blow that cannot be dodged. Physical damage: 30 + 140% AD. It can crit and it lifesteals." },
-            w: { name: "Courage", icon: "⛊", cost: 0, cd: 4, base: 0, ad: 0, ap: 0, type: "none", selfCast: true, effect: "courage",
+            w: { name: "Courage", icon: "⛊", cost: 0, cd: 8, base: 0, ad: 0, ap: 0, type: "none", selfCast: true, effect: "courage",
                  tip: "Brace yourself: +50% armor and magic resist against the next enemy turn, plus a shield of 40 + 100% armor." },
-            e: { name: "Judgment", icon: "✸", cost: 0, cd: 3, base: 0, ad: 0, ap: 0, type: "none", effect: "judgment",
+            e: { name: "Judgment", icon: "✸", cost: 0, cd: 6, base: 0, ad: 0, ap: 0, type: "none", effect: "judgment",
                  tip: "Start spinning: three hits of 15 + 55% AD over two turns, ignoring 25% of the target's armor. Two land now and the third at the start of your next turn, during which you cannot act. The cooldown only begins once the spin ends. Every hit can crit and lifesteal." },
-            r: { name: "Demacian Justice", short: "Justice", icon: "⚡", cost: 0, cd: 6, base: 100, ad: 0.5, ap: 0, type: "true", effect: "execute",
+            r: { name: "Demacian Justice", short: "Justice", icon: "⚡", cost: 0, cd: 9, base: 100, ad: 0.5, ap: 0, type: "true", effect: "execute",
                  tip: "True damage, ignoring armor and magic resist: 100 + 50% AD + 25% of the target's missing health." }
         }
     }
