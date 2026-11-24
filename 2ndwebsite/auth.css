@@ -593,7 +593,9 @@
 /* The class sets display, so the hidden attribute needs saying again. */
 .account-field[hidden] { display: none; }
 
-.account-field span {
+/* The field's own label. Scoped to the first child so it cannot also style
+   the password wrapper, which would shrink the input's inherited font. */
+.account-field > span:first-child {
     display: block;
     margin-bottom: 5px;
     font-size: 12px;
@@ -602,6 +604,41 @@
     text-transform: uppercase;
     color: var(--account-gold);
 }
+
+/* ---- show / hide password ---- */
+
+.account-pw { position: relative; display: block; }
+
+/* Room for the button so the text never runs underneath it. Scoped under
+   .account-gate so it outranks the `padding` shorthand on .account-field input,
+   which is declared further down this file. */
+.account-gate .account-pw input { padding-right: 42px; }
+
+.account-pw-toggle {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    color: #6b7c88;
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.account-gate .account-pw-toggle:hover {
+    color: var(--account-gold-bright);
+    background: rgba(200, 170, 110, 0.12);
+}
+
+.account-pw-toggle svg { width: 18px; height: 18px; }
 
 .account-field input {
     width: 100%;
