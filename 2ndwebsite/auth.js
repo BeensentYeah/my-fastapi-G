@@ -124,10 +124,16 @@ const Accounts = (() => {
             document.body.insertBefore(bar, document.body.firstChild);
         }
 
-        const others = AUTH_CONFIG.sites.filter(s => s.id !== AUTH_CONFIG.currentSite);
-        const links = others
-            .map(s => `<a class="account-link" href="${linkTo(s)}">${escape(s.name)}</a>`)
-            .join("");
+        // All three sites are listed, always in the same order, so the buttons
+        // never move as you go between them. The one you are already on is a
+        // span rather than a link: it is marked as the current page and
+        // clicking it does nothing.
+        const links = AUTH_CONFIG.sites.map(s => {
+            if (s.id === AUTH_CONFIG.currentSite) {
+                return `<span class="account-link is-current" aria-current="page">${escape(s.name)}</span>`;
+            }
+            return `<a class="account-link" href="${linkTo(s)}">${escape(s.name)}</a>`;
+        }).join("");
 
         bar.innerHTML = `
             <nav class="account-links">${links}</nav>
