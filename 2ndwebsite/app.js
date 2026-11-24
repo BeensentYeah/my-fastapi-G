@@ -9,12 +9,95 @@ const FETCH_OPTIONS = {
 
 const MAX_INVENTORY = 8;
 
-// Card art image URL 
+// =====================================================================
+// CHAMPIONS
+//
+// Each champion carries its own kit, so adding another one is a data entry
+// rather than a code change. Ability fields:
+//   cost         mana spent (0 for champions with no mana)
+//   cd           cooldown in turns
+//   base/ad/ap   damage = base + AD * ad + AP * ap
+//   type         "physical" | "magic" | "true" | "none"  ("none" = no direct damage)
+//   effect       extra behaviour, handled in applyAbilityEffect()
+//   undodgeable  skips the enemy's dodge roll
+//
+// `stats` overrides BASE_STATS. `mark` is the champion's detonation damage
+// (Ezreal's Essence Flux, Lux's Illumination); omit it for no mark.
+// Card art: paste a URL into `image`, otherwise a placeholder card is drawn.
+// =====================================================================
 const CHARACTERS = [
-    { id: "ezreal",    name: "Ezreal",     image: "https://riftdecks.com/img/cards/riftbound/SFD/sfd-149-221_full.png" },
-    { id: "champion2", name: "Champion 2", image: "", locked: true },   // locked: can't be picked yet (remove `locked` to unlock)
-    { id: "champion3", name: "Champion 3", image: "", locked: true }    // locked: can't be picked yet (remove `locked` to unlock)
+    {
+        id: "ezreal",
+        name: "Ezreal",
+        image: "https://riftdecks.com/img/cards/riftbound/SFD/sfd-149-221_full.png",
+        resource: "mana",
+        stats: { maxHp: 500, maxMana: 300, ad: 15, ap: 0, armor: 20, magicResist: 20, movementSpeed: 50 },
+        passive: {
+            name: "Rising Spell Force",
+            text: "Every ability that hits grants +10 attack speed for the rest of the combat, up to 5 stacks."
+        },
+        mark: { label: "Essence Flux", base: 50, ad: 0.2, ap: 0.9 },
+        abilities: {
+            q: { name: "Mystic Shot", icon: "✦", cost: 30, cd: 0, base: 20, ad: 1.6, ap: 0.15, type: "physical", effect: "refundCooldowns",
+                 tip: "Skillshot. Physical damage: 20 + 160% AD + 15% AP. A hit lowers your other cooldowns by 1." },
+            w: { name: "Essence Flux", icon: "❖", cost: 40, cd: 3, base: 0, ad: 0, ap: 0, type: "none", effect: "applyMark",
+                 tip: "Marks the target. Your next attack or ability detonates it for magic damage: 50 + 20% AD + 90% AP." },
+            e: { name: "Arcane Shift", icon: "➜", cost: 50, cd: 4, base: 25, ad: 0.5, ap: 0.7, type: "magic", undodgeable: true, effect: "blink",
+                 tip: "Teleport. Ignores the next attack against you and fires a bolt for magic damage: 25 + 50% AD + 70% AP." },
+            r: { name: "Trueshot Barrage", short: "Trueshot", icon: "✹", cost: 100, cd: 6, base: 180, ad: 1.0, ap: 1.1, type: "magic",
+                 tip: "Skillshot. Huge magic damage: 180 + 100% AD + 110% AP." }
+        }
+    },
+    {
+        id: "lux",
+        name: "Lux",
+        image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQNr5FaqQ2dQmVWPLLFm3_LXlEJ91ASL6i1geg2MXhWDg&s=10",
+        resource: "mana",
+        stats: { maxHp: 450, maxMana: 420, ad: 10, ap: 15, armor: 15, magicResist: 25, movementSpeed: 50 },
+        passive: {
+            name: "Illumination",
+            text: "Every ability marks the target. Your next attack or ability detonates it for magic damage: 25 + 40% AP."
+        },
+        mark: { label: "Illumination", base: 25, ad: 0, ap: 0.4 },
+        markOnEveryAbility: true,
+        abilities: {
+            q: { name: "Light Binding", icon: "✧", cost: 50, cd: 4, base: 60, ad: 0, ap: 0.7, type: "magic", effect: "root",
+                 tip: "Roots the target so it loses its next turn. Magic damage: 60 + 70% AP." },
+            w: { name: "Prismatic Barrier", short: "Barrier", icon: "⬡", cost: 40, cd: 3, base: 0, ad: 0, ap: 0, type: "none", selfCast: true, effect: "barrier",
+                 tip: "Shields you, absorbing 60 + 60% AP damage until it is used up." },
+            e: { name: "Lucent Singularity", short: "Lucent", icon: "◎", cost: 45, cd: 2, base: 50, ad: 0, ap: 0.65, type: "none", undodgeable: true, effect: "orb",
+                 tip: "Places an orb on the target. It detonates at the start of your next turn for magic damage: 50 + 65% AP, and permanently slows the target by 15 movement speed. You can still act while it hangs there." },
+            r: { name: "Final Spark", icon: "✺", cost: 100, cd: 6, base: 200, ad: 0, ap: 1.2, type: "magic",
+                 tip: "A beam of light. Magic damage: 200 + 120% AP, and it detonates Illumination at the same time." }
+        }
+    },
+    {
+        id: "garen",
+        name: "Garen",
+        image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQwtlwehtgiusW6TgOjuz4hZj0NICCaCL9mdPPqgUmOK_0Lbt_02mb1b0Y&s=10",
+        resource: "none",
+        stats: { maxHp: 650, maxMana: 0, ad: 18, ap: 0, armor: 30, magicResist: 25, movementSpeed: 40 },
+        passive: {
+            name: "Perseverance",
+            text: "If you take no damage during the enemy's turn, you heal 5% of your maximum health."
+        },
+        abilities: {
+            q: { name: "Decisive Strike", icon: "➤", cost: 0, cd: 2, base: 30, ad: 1.4, ap: 0, type: "physical", undodgeable: true, canCrit: true, effect: "strike",
+                 tip: "An empowered blow that cannot be dodged. Physical damage: 30 + 140% AD. It can crit and it lifesteals." },
+            w: { name: "Courage", icon: "⛊", cost: 0, cd: 4, base: 0, ad: 0, ap: 0, type: "none", selfCast: true, effect: "courage",
+                 tip: "Brace yourself: +50% armor and magic resist against the next enemy turn, plus a shield of 40 + 100% armor." },
+            e: { name: "Judgment", icon: "✸", cost: 0, cd: 3, base: 0, ad: 0, ap: 0, type: "none", effect: "judgment",
+                 tip: "Start spinning: three hits of 15 + 55% AD over two turns, ignoring 25% of the target's armor. Two land now and the third at the start of your next turn, during which you cannot act. The cooldown only begins once the spin ends. Every hit can crit and lifesteal." },
+            r: { name: "Demacian Justice", short: "Justice", icon: "⚡", cost: 0, cd: 6, base: 100, ad: 0.5, ap: 0, type: "true", effect: "execute",
+                 tip: "True damage, ignoring armor and magic resist: 100 + 50% AD + 25% of the target's missing health." }
+        }
+    }
 ];
+
+const SPELL_FORCE_PER_STACK = 10;
+const SPELL_FORCE_MAX_STACKS = 5;
+const PERSEVERANCE_PERCENT = 0.05;
+const LUX_SLOW = 15;
 
 
 const DIFFICULTIES = [
@@ -24,7 +107,6 @@ const DIFFICULTIES = [
 ];
 const TIER_PREFIX = ["", "Elite ", "Ancient "];
 
-// Ezreal kit. 
 const MANA_REGEN = 12;
 const Q_COOLDOWN_MS = 1000;   // Q has a real-time cooldown (shortened by ability haste)
 
@@ -35,13 +117,15 @@ const INTEREST_RATE = 0.08;        // interest = 8% of the gold you hold after t
 const INTEREST_CAP_RATIO = 0.5;    // ...capped at 50% of the expected item price
 
 const roundTo = (value, step) => Math.round(value / step) * step;
-const ABILITIES = {
-    // damage = base + AD * ad + AP * ap, then reduced by the target's armor (physical) or magic resist (magic)
-    q: { cost: 30,  cd: 0, base: 20,  ad: 1.6, ap: 0.15 },   // Mystic Shot (physical). A hit lowers other cooldowns by 1
-    w: { cost: 40,  cd: 3, base: 50,  ad: 0.2, ap: 0.9  },   // Essence Flux (magic). Mark detonates on your next hit
-    e: { cost: 50,  cd: 4, base: 25,  ad: 0.5, ap: 0.7  },   // Arcane Shift (magic bolt) + ignores next incoming hit
-    r: { cost: 100, cd: 6, base: 180, ad: 1.0, ap: 1.1  }    // Trueshot Barrage (magic)
-};
+// The selected champion's kit. Everything below reads abilities through these
+// two helpers, so nothing is tied to one champion any more.
+function kit(key) {
+    return character.abilities[key];
+}
+
+function usesMana() {
+    return character.resource !== "none";
+}
 
 // Movement speed is now a chance to dodge (capped)
 const MAX_DODGE = 60;
@@ -100,6 +184,8 @@ let rerollCount = 0;
 let enemies = [];
 let character = CHARACTERS[0];
 let difficulty = DIFFICULTIES[0];
+let combatBuffs = { attackSpeed: 0 };   // reset at the start of every combat
+let spellForceStacks = 0;               // Ezreal's passive
 
 function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, ch => ({
@@ -108,7 +194,9 @@ function escapeHtml(value) {
 }
 
 function computePlayerStats() {
-    const stats = { ...BASE_STATS };
+    // BASE_STATS -> the champion's own starting stats -> items -> buffs gained this combat
+    const stats = { ...BASE_STATS, ...(character.stats || {}) };
+    stats.attackSpeed += combatBuffs.attackSpeed;
 
     equippedItems.forEach(item => {
         if (isPotion(item)) return;
@@ -126,8 +214,14 @@ function logMessage(text) {
     const p = document.createElement("p");
     p.textContent = text;
 
+    // Colour the line by who caused it. Ability names come from the current kit.
+    const abilityNames = Object.values(character.abilities).map(a => a.name);
+    const fromPlayer = /^(You |Your |Rising Spell Force|Perseverance)/.test(text)
+        || abilityNames.some(name => text.startsWith(name))
+        || (character.mark && text.startsWith(character.mark.label));
+
     let cls = "";
-    if (/^(You (attack|dodge)|Mystic Shot|Essence Flux|Arcane Shift|Trueshot)/.test(text)) cls = "log-player";
+    if (fromPlayer) cls = "log-player";
     else if (/^(Bought|Sold|Interest)|defeated/.test(text)) cls = "log-gold";
     else if (enemy && text.startsWith(enemy.name)) cls = "log-enemy";
     else if (/appears/.test(text)) cls = "log-info";
@@ -182,6 +276,10 @@ function refreshPlayerStats() {
 }
 
 function startCombat() {
+    // combat-only buffs do not carry between rounds
+    combatBuffs = { attackSpeed: 0 };
+    spellForceStacks = 0;
+
     const stats = computePlayerStats();
 
     player = {
@@ -190,11 +288,16 @@ function startCombat() {
         mana: stats.maxMana,
         defending: false,
         shielded: false,
-        revived: false
+        revived: false,
+        shieldHp: 0,          // Lux's barrier / Garen's Courage absorb this much first
+        tookDamage: false,    // for Garen's Perseverance
+        spinTurns: 0          // turns left on Garen's Judgment, during which he cannot act
     };
 
     const base = enemies[roundIndex];
-    enemy = { ...base, hp: base.maxHp, defending: false, marked: false };
+    enemy = { ...base, hp: base.maxHp, defending: false, marked: false, rooted: false, orbTurns: 0 };
+
+    renderAbilityBar();
 
     combatOver = false;
     document.getElementById("shopPanel").classList.add("hidden");
@@ -230,7 +333,7 @@ function hastedCooldown(base) {
 
 // raw (unmitigated) ability damage from the ratio table above
 function abilityRaw(key) {
-    const a = ABILITIES[key];
+    const a = kit(key);
     return a.base + player.ad * a.ad + player.ap * a.ap;
 }
 
@@ -265,14 +368,15 @@ function enemyDodges(label) {
 
 // W mark: the next ability or attack that hits the target detonates it
 function detonateMark() {
-    if (!enemy.marked) return;
+    const mark = character.mark;
+    if (!mark || !enemy.marked) return;
     enemy.marked = false;
 
-    const raw = abilityRaw("w");
+    const raw = mark.base + player.ad * mark.ad + player.ap * mark.ap;
     const damage = mitigateMagic(raw, player.magicPenetration, enemy.magicResist);
     enemy.hp = Math.max(0, enemy.hp - damage);
     omnivampHeal(damage);
-    logMessage(`Essence Flux detonates for ${damage} magic damage!`);
+    logMessage(`${mark.label} detonates for ${damage} magic damage!`);
 }
 
 function useAbility(key) {
@@ -282,18 +386,189 @@ function useAbility(key) {
         logMessage(`${key.toUpperCase()} is on cooldown.`);
         return false;
     }
-    if (player.mana < ABILITIES[key].cost) {
+    const ability = kit(key);
+    if (usesMana() && player.mana < ability.cost) {
         logMessage("Not enough mana.");
         return false;
     }
-    player.mana -= ABILITIES[key].cost;
-    cooldowns[key] = hastedCooldown(ABILITIES[key].cd);
+    if (usesMana()) player.mana -= ability.cost;
+    cooldowns[key] = hastedCooldown(ability.cd);
 
     if (key === "q") {
         const ms = hastedCooldown(Q_COOLDOWN_MS);
         qLockUntil = Date.now() + ms;
         setTimeout(() => { if (player) render(); }, ms + 30);
     }
+    return true;
+}
+
+// A normal attack: one swing per point of attack speed, each rolling crit and lifesteal.
+function basicAttack() {
+    const total = attackCount();
+
+    for (let i = 1; i <= total && enemy.hp > 0; i++) {
+        const tag = total > 1 ? ` (${i}/${total})` : "";
+
+        if (enemyDodges("your attack" + tag)) continue;
+
+        const result = physicalDamage(player.ad, player.armorPenetration, player.critChance, player.lifeSteal, player.omnivamp, enemy.armor);
+        enemy.hp = Math.max(0, enemy.hp - result.damage);
+        healPlayer(result.heal);
+        logMessage(`You attack${tag} for ${result.damage}${result.isCrit ? " (CRIT!)" : ""}.` + (result.heal ? ` Lifesteal heals ${result.heal}.` : ""));
+        detonateMark();
+    }
+}
+
+// One rotation of Garen's Judgment. The spin lasts three turns and he cannot
+// act while it runs, so each turn resolves a single hit.
+function judgmentTick(ability, hitNumber) {
+    if (enemy.hp <= 0) return;
+
+    const armor = enemy.armor * 0.75;            // the spin ignores 25% of armor
+    const perHit = 15 + player.ad * 0.55;
+
+    if (enemyDodges(`${ability.name} (${hitNumber}/3)`)) return;
+
+    const result = physicalDamage(perHit, player.armorPenetration, player.critChance, player.lifeSteal, player.omnivamp, armor);
+    enemy.hp = Math.max(0, enemy.hp - result.damage);
+    healPlayer(result.heal);
+    logMessage(`${ability.name} (${hitNumber}/3) hits for ${result.damage}${result.isCrit ? " (CRIT!)" : ""}.` + (result.heal ? ` Lifesteal heals ${result.heal}.` : ""));
+    detonateMark();
+}
+
+// Lux's Lucent Singularity goes off at the start of her next turn.
+function detonateOrb() {
+    const ability = kit("e");
+    const raw = ability.base + player.ad * ability.ad + player.ap * ability.ap;
+    const damage = mitigateMagic(raw, player.magicPenetration, enemy.magicResist);
+
+    enemy.hp = Math.max(0, enemy.hp - damage);
+    const heal = omnivampHeal(damage);
+
+    enemy.movementSpeed = Math.max(0, enemy.movementSpeed - LUX_SLOW);
+    logMessage(`${ability.name} detonates for ${damage} magic damage!` + (heal ? ` Omnivamp heals ${heal}.` : "") +
+               ` ${enemy.name} is slowed to ${enemy.movementSpeed} movement speed (dodge ${dodgeChance(enemy.movementSpeed)}%).`);
+
+    detonateMark();   // logged after the orb so the lines read in the right order
+
+    if (character.markOnEveryAbility && enemy.hp > 0) enemy.marked = true;
+    flash("enemyPanel");
+}
+
+// Everything an ability does beyond raw damage. Returns a sentence for the log.
+function applyAbilityEffect(key, ability) {
+    switch (ability.effect) {
+        case "refundCooldowns":
+            ["q", "w", "e", "r"].forEach(k => {
+                if (k !== key) cooldowns[k] = Math.max(0, cooldowns[k] - 1);
+            });
+            return "Your other cooldowns drop by 1.";
+
+        case "applyMark":
+            enemy.marked = true;
+            return "Marks the target: your next attack or ability detonates it.";
+
+        case "blink":
+            player.shielded = true;
+            return "The next attack against you is ignored.";
+
+        case "root":
+            enemy.rooted = true;
+            return `${enemy.name} is rooted.`;
+
+        case "barrier": {
+            const amount = Math.round(60 + player.ap * 0.6);
+            player.shieldHp += amount;
+            return `A barrier absorbs the next ${amount} damage.`;
+        }
+
+        case "orb":
+            enemy.orbTurns = 1;                  // detonates at the start of the next player turn
+            return `An orb hangs over ${enemy.name}. It detonates at the start of your next turn.`;
+
+        case "courage": {
+            player.defending = true;
+            const amount = Math.round(40 + player.armor);
+            player.shieldHp += amount;
+            return `You brace: +50% resistances this turn and a shield of ${amount}.`;
+        }
+
+        default:
+            return "";
+    }
+}
+
+// Ezreal's passive: each ability that connects speeds up his attacks.
+function gainSpellForce() {
+    if (character.id !== "ezreal" || spellForceStacks >= SPELL_FORCE_MAX_STACKS) return;
+    spellForceStacks++;
+    combatBuffs.attackSpeed += SPELL_FORCE_PER_STACK;
+    refreshPlayerStats();
+    logMessage(`Rising Spell Force: ${spellForceStacks}/${SPELL_FORCE_MAX_STACKS} (+${combatBuffs.attackSpeed} attack speed).`);
+}
+
+const DAMAGE_WORD = { physical: "physical", magic: "magic", true: "true" };
+
+// Resolves any ability from the champion's kit.
+function castAbility(key) {
+    if (!useAbility(key)) return false;
+    const ability = kit(key);
+
+    // Judgment is three attacks rather than one hit, so it has its own routine.
+    if (ability.effect === "judgment") {
+        // The spin averages 1.5 hits a turn over two turns: two now, one next turn.
+        judgmentTick(ability, 1);
+        judgmentTick(ability, 2);
+        cooldowns[key] = 0;                      // the cooldown only starts once the spin ends
+        player.spinTurns = 1;                    // still spinning through his next turn
+        if (enemy.hp > 0) logMessage("You keep spinning: you cannot act next turn.");
+        gainSpellForce();
+        return true;
+    }
+
+    // Abilities aimed at the enemy can be dodged; self-cast ones cannot.
+    if (!ability.selfCast && !ability.undodgeable && enemyDodges(ability.name)) return true;
+
+    let raw = abilityRaw(key);
+    if (ability.effect === "execute") raw += (enemy.maxHp - enemy.hp) * 0.25;
+
+    let damage = 0;
+    let heal = 0;
+    let crit = false;
+
+    if (ability.canCrit && ability.type === "physical") {
+        const result = physicalDamage(raw, player.armorPenetration, player.critChance, player.lifeSteal, player.omnivamp, enemy.armor);
+        damage = result.damage;
+        crit = result.isCrit;
+        heal = result.heal;
+        healPlayer(heal);
+    } else if (ability.type === "physical") {
+        damage = mitigatePhysical(raw, player.armorPenetration, enemy.armor);
+    } else if (ability.type === "magic") {
+        damage = mitigateMagic(raw, player.magicPenetration, enemy.magicResist);
+    } else if (ability.type === "true") {
+        damage = Math.max(1, Math.round(raw));       // ignores armor and magic resist
+    }
+
+    if (damage > 0) {
+        enemy.hp = Math.max(0, enemy.hp - damage);
+        if (!ability.canCrit) heal = omnivampHeal(damage);
+        detonateMark();
+    }
+
+    const extra = applyAbilityEffect(key, ability);
+
+    // Lux marks with everything she throws at the enemy.
+    if (character.markOnEveryAbility && !ability.selfCast && enemy.hp > 0) enemy.marked = true;
+
+    let line = damage > 0
+        ? `${ability.name} hits for ${damage} ${DAMAGE_WORD[ability.type]} damage${crit ? " (CRIT!)" : ""}.`
+        : `${ability.name}.`;
+    if (heal) line += ` Heals ${heal}.`;
+    if (extra) line += ` ${extra}`;
+    logMessage(line);
+
+    if (!ability.selfCast) gainSpellForce();
     return true;
 }
 
@@ -304,60 +579,9 @@ function playerAction(action) {
     const hpBefore = enemy.hp;
 
     if (action === "attack") {
-        const total = attackCount();
-
-        for (let i = 1; i <= total && enemy.hp > 0; i++) {
-            const tag = total > 1 ? ` (${i}/${total})` : "";
-
-            if (enemyDodges("your attack" + tag)) continue;
-
-            const result = physicalDamage(player.ad, player.armorPenetration, player.critChance, player.lifeSteal, player.omnivamp, enemy.armor);
-            enemy.hp = Math.max(0, enemy.hp - result.damage);
-            healPlayer(result.heal);
-            logMessage(`You attack${tag} for ${result.damage}${result.isCrit ? " (CRIT!)" : ""}.` + (result.heal ? ` Lifesteal heals ${result.heal}.` : ""));
-            detonateMark();
-        }
-
-    } else if (action === "q") {
-        if (!useAbility("q")) return;
-        if (!enemyDodges("Mystic Shot")) {
-            const raw = abilityRaw("q");
-            const damage = mitigatePhysical(raw, player.armorPenetration, enemy.armor);
-            enemy.hp = Math.max(0, enemy.hp - damage);
-            const heal = omnivampHeal(damage);
-            logMessage(`Mystic Shot hits for ${damage} physical damage.` + (heal ? ` Omnivamp heals ${heal}.` : ""));
-            detonateMark();
-            ["w", "e", "r"].forEach(k => cooldowns[k] = Math.max(0, cooldowns[k] - 1));
-        }
-
-    } else if (action === "w") {
-        if (!useAbility("w")) return;
-        if (!enemyDodges("Essence Flux")) {
-            enemy.marked = true;
-            logMessage("Essence Flux marks the target. Your next attack or ability detonates it.");
-        }
-
-    } else if (action === "e") {
-        if (!useAbility("e")) return;
-        player.shielded = true;
-        const raw = abilityRaw("e");
-        const damage = mitigateMagic(raw, player.magicPenetration, enemy.magicResist);
-        enemy.hp = Math.max(0, enemy.hp - damage);
-        omnivampHeal(damage);
-        logMessage(`Arcane Shift: you blink and fire a bolt for ${damage} magic damage. The next attack or ability against you is ignored.`);
-        detonateMark();
-
-    } else if (action === "r") {
-        if (!useAbility("r")) return;
-        if (!enemyDodges("Trueshot Barrage")) {
-            const raw = abilityRaw("r");
-            const damage = mitigateMagic(raw, player.magicPenetration, enemy.magicResist);
-            enemy.hp = Math.max(0, enemy.hp - damage);
-            const heal = omnivampHeal(damage);
-            logMessage(`Trueshot Barrage hits for ${damage} magic damage!` + (heal ? ` Omnivamp heals ${heal}.` : ""));
-            detonateMark();
-        }
-
+        basicAttack();
+    } else if (!castAbility(action)) {
+        return;                                   // on cooldown or not enough mana
     }
 
     const charmMana = equippedItems.reduce((sum, item) => sum + itemManaPerAction(item), 0);
@@ -368,6 +592,14 @@ function playerAction(action) {
 
     if (enemy.hp <= 0) {
         winCombat();
+        return;
+    }
+
+    // A rooted enemy misses its turn entirely.
+    if (enemy.rooted) {
+        enemy.rooted = false;
+        logMessage(`${enemy.name} is rooted and cannot act.`);
+        startPlayerTurn();
         return;
     }
 
@@ -403,21 +635,21 @@ function enemyAction() {
 
     if (player.shielded) {
         player.shielded = false;
-        logMessage(`Arcane Shift: you blink away from ${enemy.name}'s ${label}!`);
+        logMessage(`You blink away from ${enemy.name}'s ${label}!`);
     } else if (Math.random() * 100 < dodgeChance(player.movementSpeed)) {
         logMessage(`You dodge ${enemy.name}'s ${label}!`);
     } else {
+        let incoming;
         if (isPhysical) {
             const armor = player.armor + (player.defending ? player.armor * 0.5 : 0);
-            const result = physicalDamage(enemy.ad, 0, 0, 0, 0, armor);
-            player.hp = Math.max(0, player.hp - result.damage);
-            logMessage(`${enemy.name} attacks for ${result.damage}.`);
+            incoming = physicalDamage(enemy.ad, 0, 0, 0, 0, armor).damage;
+            logMessage(`${enemy.name} attacks for ${incoming}.`);
         } else {
             const mr = player.magicResist + (player.defending ? player.magicResist * 0.5 : 0);
-            const result = magicDamage(enemy.ap, 0, 0, mr);
-            player.hp = Math.max(0, player.hp - result.damage);
-            logMessage(`${enemy.name} casts for ${result.damage} magic damage.`);
+            incoming = magicDamage(enemy.ap, 0, 0, mr).damage;
+            logMessage(`${enemy.name} casts for ${incoming} magic damage.`);
         }
+        damagePlayer(incoming);
         flash("playerPanel");
     }
 
@@ -427,9 +659,68 @@ function enemyAction() {
         return;
     }
 
-    // start of the player's next turn
+    startPlayerTurn();
+}
+
+// Damage aimed at the player. A barrier soaks it before health does.
+function damagePlayer(amount) {
+    let remaining = amount;
+
+    if (player.shieldHp > 0) {
+        const absorbed = Math.min(player.shieldHp, remaining);
+        player.shieldHp -= absorbed;
+        remaining -= absorbed;
+        logMessage(`Your barrier absorbs ${absorbed}` + (player.shieldHp > 0 ? ` (${player.shieldHp} left).` : " and breaks."));
+    }
+
+    if (remaining > 0) {
+        player.hp = Math.max(0, player.hp - remaining);
+        player.tookDamage = true;
+    }
+    return remaining;
+}
+
+// Cooldowns tick, mana regenerates, and any start-of-turn passive fires.
+function startPlayerTurn() {
     Object.keys(cooldowns).forEach(k => cooldowns[k] = Math.max(0, cooldowns[k] - 1));
-    player.mana = Math.min(player.maxMana, player.mana + MANA_REGEN);
+    if (usesMana()) player.mana = Math.min(player.maxMana, player.mana + MANA_REGEN);
+
+    if (character.id === "garen" && !player.tookDamage && player.hp < player.maxHp) {
+        const heal = Math.round(player.maxHp * PERSEVERANCE_PERCENT);
+        healPlayer(heal);
+        logMessage(`Perseverance restores ${heal} health.`);
+        flash("playerPanel", "heal");
+    }
+
+    player.tookDamage = false;
+
+    // A pending Lucent Singularity goes off before the player acts.
+    if (enemy.orbTurns > 0) {
+        enemy.orbTurns--;
+        if (enemy.orbTurns === 0) {
+            detonateOrb();
+            if (enemy.hp <= 0) { render(); winCombat(); return; }
+        }
+    }
+
+    // Garen is still spinning: he lands the final hit but loses the turn.
+    if (player.spinTurns > 0) {
+        const ability = kit("e");
+        judgmentTick(ability, 3);
+        player.spinTurns--;
+
+        // The spin is over, so Judgment's cooldown begins now rather than at cast.
+        if (player.spinTurns === 0) cooldowns.e = hastedCooldown(ability.cd);
+
+        render();
+
+        if (enemy.hp <= 0) { winCombat(); return; }
+
+        playerTurn = false;
+        setTimeout(enemyAction, 700);
+        return;
+    }
+
     playerTurn = true;
     render();
 }
@@ -880,6 +1171,7 @@ function showCharacterSelect() {
             <img src="${escapeHtml(c.image || placeholderCard(c.name))}" alt="${escapeHtml(c.name)}"
                  referrerpolicy="no-referrer" onerror="this.onerror=null;this.src=placeholderCard(this.alt)">
             <span class="choice-name">${escapeHtml(c.name)}${c.locked ? " (Locked)" : ""}</span>
+            <span class="choice-sub">${escapeHtml(c.passive ? c.passive.name : "")}</span>
         </button>
     `).join("");
 
@@ -973,21 +1265,83 @@ function statGridHtml(unit) {
         + `<div class="wide">AS: ${as} (${atkPerTurn} atk/turn)</div>`;
 }
 
+// The ability bar is built from the chosen champion's kit, not from the HTML.
+function renderAbilityBar() {
+    // Information only: shows the champion's passive on hover and cannot be clicked.
+    const passive = character.passive ? `
+        <div class="ability-slot passive-slot" aria-disabled="true">
+            <span class="ability-key">P</span>
+            <span class="ability-icon">\u2605</span>
+            <span class="ability-name">Passive</span>
+            <span class="slot-tip passive-tip">
+                <strong>${escapeHtml(character.passive.name)}</strong>${escapeHtml(character.passive.text)}
+            </span>
+        </div>` : "";
+
+    const attack = `
+        <button class="ability-slot" id="attackBtn" onclick="playerAction('attack')"
+                title="A normal attack. Attack speed grants extra swings; each one can crit and lifesteal.">
+            <span class="ability-key">A</span>
+            <span class="ability-icon">⚔</span>
+            <span class="ability-name">Attack</span>
+        </button>`;
+
+    const slots = ["q", "w", "e", "r"].map(key => {
+        const ability = kit(key);
+        return `
+        <button class="ability-slot" id="${key}Btn" onclick="playerAction('${key}')" title="${escapeHtml(ability.tip)}">
+            <span class="ability-key">${key.toUpperCase()}</span>
+            <span class="ability-icon">${ability.icon}</span>
+            <span class="ability-name">${escapeHtml(ability.short || ability.name)}</span>
+            ${ability.cost > 0 ? `<span class="ability-cost">${ability.cost}</span>` : ""}
+            <span class="ability-cd"></span>
+        </button>`;
+    }).join("");
+
+    document.getElementById("abilityBar").innerHTML = passive + attack + slots;
+}
+
 function render() {
     document.getElementById("goldAmount").textContent = gold;
     document.getElementById("shopGold").textContent = gold;
     document.getElementById("roundLabel").textContent = `Round ${Math.min(roundIndex + 1, enemies.length)} / ${enemies.length}`;
-    document.getElementById("turnLabel").textContent = combatOver ? "Shop" : (playerTurn ? "Your turn" : "Enemy turn");
+    const spinning = player && player.spinTurns > 0;
+    document.getElementById("turnLabel").textContent =
+        combatOver ? "Shop" : spinning ? "Spinning" : playerTurn ? "Your turn" : "Enemy turn";
 
-    document.getElementById("playerHpFill").style.width = `${(player.hp / player.maxHp) * 100}%`;
-    document.getElementById("playerHpLabel").textContent = `HP ${player.hp} / ${player.maxHp}`;
-    document.getElementById("playerManaFill").style.width = `${(player.mana / player.maxMana) * 100}%`;
-    document.getElementById("playerManaLabel").textContent = `Mana ${player.mana} / ${player.maxMana}`;
+    // The bar is scaled to health plus shield, so a shield is still visible at full
+    // health instead of being squeezed off the end.
+    const barTotal = Math.max(player.maxHp, player.hp + player.shieldHp);
+    const hpPercent = (player.hp / barTotal) * 100;
+    const shieldPercent = (player.shieldHp / barTotal) * 100;
+
+    document.getElementById("playerHpFill").style.width = `${hpPercent}%`;
+    document.getElementById("playerHpLabel").textContent =
+        `HP ${player.hp} / ${player.maxHp}` + (player.shieldHp > 0 ? ` (+${player.shieldHp} shield)` : "");
+
+    const shieldBar = document.getElementById("playerShieldFill");
+    shieldBar.classList.toggle("is-active", player.shieldHp > 0);
+    shieldBar.style.left = `${hpPercent}%`;
+    shieldBar.style.width = `${shieldPercent}%`;
+    // Champions with no mana (Garen) hide the bar entirely and run on cooldowns.
+    const manaBar = document.getElementById("playerManaBar");
+    const manaLabel = document.getElementById("playerManaLabel");
+    manaBar.classList.toggle("ghost", !usesMana());
+    manaLabel.classList.toggle("ghost", !usesMana());
+
+    if (usesMana()) {
+        document.getElementById("playerManaFill").style.width = `${(player.mana / player.maxMana) * 100}%`;
+        manaLabel.textContent = `Mana ${player.mana} / ${player.maxMana}`;
+    }
 
     document.getElementById("playerStats").innerHTML = statGridHtml(player);
 
     document.getElementById("enemyName").textContent = enemy.name + (enemy.marked ? " (Marked)" : "");
-    document.getElementById("playerName").textContent = character.name + (player.shielded ? " (Shielded)" : "");
+    const marks = [];
+    if (player.shielded) marks.push("Blink");
+    if (player.shieldHp > 0) marks.push(`Shield ${player.shieldHp}`);
+    if (player.defending) marks.push("Bracing");
+    document.getElementById("playerName").textContent = character.name + (marks.length ? ` (${marks.join(", ")})` : "");
     setCard("playerCard", character.image, character.name);
     setCard("enemyCard", enemy.image, enemy.name);
     document.getElementById("enemyHpFill").style.width = `${(enemy.hp / enemy.maxHp) * 100}%`;
@@ -999,8 +1353,11 @@ function render() {
         const btn = document.getElementById(key + "Btn");
         const cd = cooldowns[key];
         const timeLeft = key === "q" ? qLockUntil - Date.now() : 0;
-        btn.disabled = !playerTurn || combatOver || cd > 0 || timeLeft > 0 || player.mana < ABILITIES[key].cost;
-        btn.querySelector(".ability-cd").textContent = cd > 0 ? Math.ceil(cd) : (timeLeft > 0 ? Math.ceil(timeLeft / 1000) : "");
+        const tooExpensive = usesMana() && player.mana < kit(key).cost;
+        const spinning = key === "e" && player.spinTurns > 0;
+        btn.disabled = spinning || !playerTurn || combatOver || cd > 0 || timeLeft > 0 || tooExpensive;
+        btn.querySelector(".ability-cd").textContent =
+            spinning ? player.spinTurns : cd > 0 ? Math.ceil(cd) : timeLeft > 0 ? Math.ceil(timeLeft / 1000) : "";
     });
 
     renderInventory();

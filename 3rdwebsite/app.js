@@ -61,7 +61,13 @@ let suggestions = [];
 let activeSuggestion = -1;
 
 // DOM
-const modeSelectEl = document.getElementById("modeSelect");
+const modeToggleEl = document.getElementById("modeToggle");
+const modeValueEl = document.getElementById("modeValue");
+const modeMenuEl = document.getElementById("modeMenu");
+const modeDropdownEl = document.getElementById("modeDropdown");
+const howToBtnEl = document.getElementById("howToBtn");
+const howToOverlayEl = document.getElementById("howToOverlay");
+const howToCloseEl = document.getElementById("howToClose");
 const inputEl = document.getElementById("guessInput");
 const suggestionsEl = document.getElementById("suggestions");
 const messageEl = document.getElementById("message");
@@ -95,7 +101,7 @@ function statValue(item, key) {
 async function loadItems() {
     setMessage("Loading items...");
     setControlsDisabled(true);
-    modeSelectEl.disabled = true;
+    modeToggleEl.disabled = true;
 
     try {
         const response = await fetch(`${API_URL}/api/v1/items`, FETCH_OPTIONS);
@@ -110,7 +116,7 @@ async function loadItems() {
         console.log("Item categories:", [...new Set(allItems.map(i => i.category))]);
 
         renderModeSelect();
-        modeSelectEl.disabled = false;
+        modeToggleEl.disabled = false;
         startGame();
     } catch (error) {
         console.error(error);
@@ -129,18 +135,71 @@ function getPool(modeId) {
 }
 
 function renderModeSelect() {
-    modeSelectEl.innerHTML = MODES.map(mode => {
+    modeMenuEl.innerHTML = MODES.map(mode => {
         const count = getPool(mode.id).length;
         const disabled = count < 2;
-        return `<option value="${mode.id}" ${disabled ? "disabled" : ""}>${escapeHtml(mode.label)} (${count})</option>`;
+        return `<li class="dropdown-option" role="option" data-mode="${mode.id}"
+                    aria-selected="${mode.id === activeMode}"
+                    aria-disabled="${disabled}">${escapeHtml(mode.label)} (${count})</li>`;
     }).join("");
 
-    modeSelectEl.value = activeMode;
+    updateModeLabel();
+}
+
+// Keeps the closed dropdown showing the current pool and its item count.
+function updateModeLabel() {
+    const mode = MODES.find(m => m.id === activeMode) || MODES[0];
+    modeValueEl.textContent = `${mode.label} (${getPool(mode.id).length})`;
+
+    modeMenuEl.querySelectorAll(".dropdown-option").forEach(option => {
+        option.setAttribute("aria-selected", String(option.dataset.mode === activeMode));
+    });
+}
+
+function isModeMenuOpen() {
+    return !modeMenuEl.classList.contains("hidden");
+}
+
+function openModeMenu() {
+    if (modeToggleEl.disabled) return;
+    modeMenuEl.classList.remove("hidden");
+    modeToggleEl.setAttribute("aria-expanded", "true");
+    highlightOption(modeMenuEl.querySelector(`[data-mode="${activeMode}"]`));
+}
+
+function closeModeMenu() {
+    modeMenuEl.classList.add("hidden");
+    modeToggleEl.setAttribute("aria-expanded", "false");
+}
+
+// The highlighted row for keyboard navigation.
+function highlightOption(option) {
+    modeMenuEl.querySelectorAll(".dropdown-option").forEach(el => el.classList.remove("active"));
+    if (option) {
+        option.classList.add("active");
+        option.scrollIntoView({ block: "nearest" });
+    }
+}
+
+function moveHighlight(step) {
+    const options = [...modeMenuEl.querySelectorAll('.dropdown-option[aria-disabled="false"]')];
+    if (!options.length) return;
+    const current = modeMenuEl.querySelector(".dropdown-option.active");
+    const next = options[(options.indexOf(current) + step + options.length) % options.length];
+    highlightOption(next);
+}
+
+function chooseOption(option) {
+    if (!option || option.getAttribute("aria-disabled") === "true") return;
+    closeModeMenu();
+    modeToggleEl.focus();
+    setMode(option.dataset.mode);
 }
 
 function setMode(modeId) {
     if (modeId === activeMode) return;
     activeMode = modeId;
+    updateModeLabel();
     startGame();
 }
 
@@ -189,7 +248,7 @@ function startGame() {
     inputEl.value = "";
     hideSuggestions();
 
-    modeSelectEl.value = activeMode;
+    updateModeLabel();
     setControlsDisabled(false);
     updateCount();
     setMessage("Type an item name to make your first guess.");
@@ -523,7 +582,65 @@ document.addEventListener("click", event => {
     if (!event.target.closest(".guess-field")) hideSuggestions();
 });
 
-modeSelectEl.addEventListener("change", () => setMode(modeSelectEl.value));
+// ---- custom dropdown -------------------------------------------------
+modeToggleEl.addEventListener("click", () => {
+    isModeMenuOpen() ? closeModeMenu() : openModeMenu();
+});
+
+modeMenuEl.addEventListener("click", event => {
+    chooseOption(event.target.closest(".dropdown-option"));
+});
+
+modeMenuEl.addEventListener("mousemove", event => {
+    const option = event.target.closest('.dropdown-option[aria-disabled="false"]');
+    if (option) highlightOption(option);
+});
+
+modeDropdownEl.addEventListener("keydown", event => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (!isModeMenuOpen()) openModeMenu();
+        else moveHighlight(event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "Enter" || event.key === " ") {
+        if (isModeMenuOpen()) {
+            event.preventDefault();
+            chooseOption(modeMenuEl.querySelector(".dropdown-option.active"));
+        }
+    } else if (event.key === "Escape" && isModeMenuOpen()) {
+        closeModeMenu();
+        modeToggleEl.focus();
+    } else if (event.key === "Tab") {
+        closeModeMenu();
+    }
+});
+
+// Clicking anywhere else closes the menu.
+document.addEventListener("click", event => {
+    if (isModeMenuOpen() && !modeDropdownEl.contains(event.target)) closeModeMenu();
+});
+
+// ---- How to Play modal ------------------------------------------------
+function openHowTo() {
+    howToOverlayEl.classList.remove("hidden");
+    howToCloseEl.focus();
+}
+
+function closeHowTo() {
+    howToOverlayEl.classList.add("hidden");
+    howToBtnEl.focus();
+}
+
+howToBtnEl.addEventListener("click", openHowTo);
+howToCloseEl.addEventListener("click", closeHowTo);
+
+// Clicking the dark area outside the dialog closes it.
+howToOverlayEl.addEventListener("click", event => {
+    if (event.target === howToOverlayEl) closeHowTo();
+});
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !howToOverlayEl.classList.contains("hidden")) closeHowTo();
+});
 
 guessBtn.addEventListener("click", submitGuess);
 giveUpBtn.addEventListener("click", giveUp);

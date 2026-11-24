@@ -1,0 +1,361 @@
+/* =====================================================================
+   Styling for the shared account bar, the profile menu and the sign-in
+   screen. Deliberately self-contained: every class starts with
+   "account-" so it cannot collide with anything in the three games'
+   own stylesheets.
+   ===================================================================== */
+
+:root {
+    --account-gold: #c8aa6e;
+    --account-gold-bright: #f0e6d2;
+    --account-panel: #0d1920;
+    --account-panel-2: #11222c;
+    --account-line: #22323d;
+    --account-text: #a9b6bf;
+    --account-text-strong: #dfe7ec;
+    --account-danger: #f08a98;
+}
+
+/* ---- top bar --------------------------------------------------------- */
+
+/* Self-contained box model: do not rely on the host page setting it. */
+.account-bar, .account-bar *,
+.account-gate, .account-gate * { box-sizing: border-box; }
+
+.account-bar {
+    position: sticky;
+    top: 0;
+    z-index: 500;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 16px;
+    font-family: "Barlow", "Segoe UI", sans-serif;
+    font-size: 14px;
+    color: var(--account-text);
+    background: #0a131a;
+    border-bottom: 1px solid var(--account-gold);
+}
+
+.account-links { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.account-link {
+    padding: 6px 12px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--account-gold);
+    border: 1px solid var(--account-line);
+    border-radius: 3px;
+    transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+}
+
+.account-link:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+}
+
+/* The menu is positioned against this, so it stays under the avatar. */
+.account-side {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ---- profile button -------------------------------------------------- */
+
+.account-avatar-btn {
+    display: block;
+    flex: none;             /* some of the games set button { flex: 1 } */
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--account-panel-2);
+    border: 1px solid var(--account-line);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.account-bar .account-avatar-btn:hover,
+.account-bar .account-avatar-btn[aria-expanded="true"] {
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+    box-shadow: 0 0 0 2px rgba(200, 170, 110, 0.22);
+}
+
+.account-avatar-art { display: block; width: 100%; height: 100%; }
+
+/* ---- the dropdown ---------------------------------------------------- */
+
+.account-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 10;
+    width: 290px;
+    max-width: calc(100vw - 24px);
+    padding: 8px;
+    text-align: left;
+    background: var(--account-panel);
+    border: 1px solid var(--account-gold);
+    border-radius: 8px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+.account-menu.hidden { display: none; }
+
+/* Who you are, at the top of the menu. */
+.account-menu-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: var(--account-panel-2);
+    border: 1px solid var(--account-line);
+    border-radius: 6px;
+}
+
+.account-avatar-lg {
+    display: block;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 50%;
+}
+
+.account-menu-id { display: block; min-width: 0; line-height: 1.35; }
+
+.account-menu-id strong {
+    display: block;
+    font-size: 15px;
+    color: var(--account-gold-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-menu-id span { font-size: 12px; color: #6b7c88; }
+
+.account-menu-list { display: flex; flex-direction: column; gap: 2px; }
+
+.account-menu-item {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--account-text-strong);
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.account-bar .account-menu-item:hover {
+    color: var(--account-text-strong);
+    background: var(--account-panel-2);
+}
+.account-menu-item > span { flex: 1; min-width: 0; }
+.account-menu-icon { flex: none; width: 16px; height: 16px; color: var(--account-gold); }
+
+.account-menu-item.danger { color: var(--account-danger); }
+.account-menu-item.danger .account-menu-icon { color: var(--account-danger); }
+.account-bar .account-menu-item.danger:hover {
+    color: var(--account-danger);
+    background: rgba(240, 138, 152, 0.1);
+}
+
+/* Marks a row that is in place but not wired up yet. */
+.account-soon {
+    flex: none;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7c88;
+    border: 1px solid var(--account-line);
+    border-radius: 999px;
+}
+
+.account-menu-rule {
+    height: 0;
+    margin: 6px 2px;
+    border: 0;
+    border-top: 1px solid var(--account-line);
+}
+
+.account-menu-note {
+    margin: 8px 2px 2px;
+    font-size: 12px;
+    color: #6b7c88;
+}
+
+/* ---- sign-in screen -------------------------------------------------- */
+
+.account-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(3, 7, 10, 0.88);
+    backdrop-filter: blur(4px);
+}
+
+.account-gate.hidden { display: none; }
+
+.account-card {
+    width: 100%;
+    max-width: 380px;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 26px 26px 22px;
+    font-family: "Barlow", "Segoe UI", sans-serif;
+    color: var(--account-text);
+    background: var(--account-panel);
+    border: 1px solid var(--account-gold);
+    border-radius: 8px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.7);
+}
+
+.account-card h2 {
+    margin: 0 0 6px;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 22px;
+    color: var(--account-gold-bright);
+}
+
+.account-sub { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+
+.account-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+    padding: 4px;
+    background: #081118;
+    border: 1px solid var(--account-line);
+    border-radius: 4px;
+}
+
+.account-tab {
+    flex: 1;
+    padding: 8px;
+    font: inherit;
+    font-weight: 600;
+    color: var(--account-text);
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.account-gate .account-tab:hover:not(.is-on) {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+}
+
+.account-gate .account-tab.is-on {
+    color: #0b1319;
+    background: var(--account-gold);
+}
+
+.account-field { display: block; margin-bottom: 14px; }
+
+/* The class sets display, so the hidden attribute needs saying again. */
+.account-field[hidden] { display: none; }
+
+.account-field span {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--account-gold);
+}
+
+.account-field input {
+    width: 100%;
+    padding: 10px 12px;
+    font: inherit;
+    color: var(--account-text-strong);
+    background: #081118;
+    border: 1px solid var(--account-line);
+    border-radius: 3px;
+}
+
+.account-field input:focus {
+    outline: none;
+    border-color: var(--account-gold);
+}
+
+.account-error {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--account-danger);
+}
+
+.account-primary,
+.account-ghost {
+    width: 100%;
+    padding: 11px;
+    font: inherit;
+    font-weight: 700;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.account-primary {
+    color: #0b1319;
+    background: var(--account-gold);
+    border: 1px solid var(--account-gold);
+}
+
+.account-gate .account-primary:hover:not(:disabled) {
+    background: var(--account-gold-bright);
+    border-color: var(--account-gold-bright);
+}
+
+.account-primary:disabled { opacity: 0.5; cursor: progress; }
+
+.account-ghost {
+    margin-top: 14px;
+    color: var(--account-gold);
+    background: transparent;
+    border: 1px solid var(--account-line);
+}
+
+.account-gate .account-ghost:hover {
+    color: var(--account-gold-bright);
+    background: var(--account-panel-2);
+    border-color: var(--account-gold);
+}
+
+.account-note {
+    margin: 10px 0 0;
+    font-size: 12px;
+    text-align: center;
+    color: #6b7c88;
+}
+
+@media (max-width: 520px) {
+    .account-bar { justify-content: space-between; }
+    .account-links { flex: 1; }
+}

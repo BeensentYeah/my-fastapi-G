@@ -114,11 +114,21 @@ async function loadItems() {
     }
 }
 
+// Display order for the category chips.
+const CATEGORY_ORDER = [
+    "Starter items", "Consumable items", "Basic items", "Boots", "Epic items", "Legendary items"
+];
+
 function renderCategoryFilters() {
     const container = document.getElementById("categoryFilters");
     if (!container) return;
 
-    categoryList = ["All", ...new Set(allItems.map(item => item.category).filter(Boolean))];
+    // Ordered by how items progress in game, not by the order they arrive from
+    // the API. Any category not listed here still shows, appended alphabetically.
+    const present = new Set(allItems.map(item => item.category).filter(Boolean));
+    const known = CATEGORY_ORDER.filter(cat => present.has(cat));
+    const extra = [...present].filter(cat => !CATEGORY_ORDER.includes(cat)).sort();
+    categoryList = ["All", ...known, ...extra];
 
     container.innerHTML = categoryList.map((cat, index) => `
         <button class="filter-chip ${cat === activeCategory ? "active" : ""}" onclick="setCategory(${index})">

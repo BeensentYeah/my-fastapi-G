@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="auth.css">
 </head>
 
 <body>
@@ -28,10 +29,22 @@
     <main>
 
         <div class="mode-row">
-            <label for="modeSelect">Item pool</label>
-            <select id="modeSelect" class="mode-select">
-                <option>Loading...</option>
-            </select>
+            <span class="mode-label" id="modeLabel">Item pool</span>
+
+            <!-- Custom dropdown: a native <select> cannot be styled on all browsers. -->
+            <div class="dropdown" id="modeDropdown">
+                <button type="button" class="dropdown-toggle" id="modeToggle"
+                        aria-haspopup="listbox" aria-expanded="false" aria-labelledby="modeLabel modeToggle">
+                    <span id="modeValue">Loading...</span>
+                    <svg class="dropdown-caret" viewBox="0 0 12 8" width="12" height="8" aria-hidden="true">
+                        <path d="M1 1l5 5 5-5" fill="none" stroke="currentColor"
+                              stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <ul class="dropdown-menu hidden" id="modeMenu" role="listbox" aria-labelledby="modeLabel"></ul>
+            </div>
+
+            <button type="button" class="secondary how-to-btn" id="howToBtn">How to Play</button>
         </div>
 
         <section class="guess-area">
@@ -85,7 +98,54 @@
         <p>A hint unlocks after 6 guesses.</p>
     </footer>
 
+    <!-- How to Play, opened from the button in the controls row. -->
+    <div class="modal-overlay hidden" id="howToOverlay">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="howToTitle">
+            <div class="modal-head">
+                <h2 id="howToTitle">How to play</h2>
+                <button type="button" class="modal-close" id="howToClose" aria-label="Close">&#10005;</button>
+            </div>
+
+            <ol class="how-to">
+                <li>Type any item name and press <strong>Guess</strong>.</li>
+                <li>Every cell shows how your guess compares with the mystery item.</li>
+                <li>Use the colours and arrows to narrow it down.</li>
+            </ol>
+
+            <p class="example-label">An example guess</p>
+
+            <div class="example-board" style="--stat-count: 3" aria-hidden="true">
+                <div class="row header-row">
+                    <div class="head-cell">Item</div>
+                    <div class="head-cell">Category</div>
+                    <div class="head-cell">Price</div>
+                    <div class="head-cell">AD</div>
+                    <div class="head-cell">Health</div>
+                    <div class="head-cell">Armor</div>
+                </div>
+                <div class="row static">
+                    <div class="cell cell-item"><span class="val">Long Sword</span></div>
+                    <div class="cell correct"><span class="val">Basic items</span></div>
+                    <div class="cell wrong"><span class="val">350g</span><span class="arrow">&#9650;</span></div>
+                    <div class="cell close"><span class="val">10</span><span class="arrow">&#9650;</span></div>
+                    <div class="cell none"><span class="val">&#8212;</span></div>
+                    <div class="cell wrong"><span class="val">&#8212;</span></div>
+                </div>
+            </div>
+
+            <p class="example-note">
+                Same category, so that is green. The mystery item costs more than 350g and has more
+                than 10 attack damage. Neither item has health. Only the mystery item has armor.
+            </p>
+        </div>
+    </div>
+
     <script src="app.js"></script>
+
+<!-- Accounts: shared across all three sites. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-config.js"></script>
+<script src="auth.js"></script>
 
 </body>
 </html>

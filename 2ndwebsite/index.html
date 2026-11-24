@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="auth.css">
 </head>
 <body>
 
@@ -25,9 +26,13 @@
         <div class="fighter" id="playerPanel">
             <h2 id="playerName">Ezreal</h2>
             <div class="card-art"><img id="playerCard" alt="Ezreal card" referrerpolicy="no-referrer"></div>
-            <div class="bar hp-bar"><div class="bar-fill" id="playerHpFill"></div></div>
+            <div class="bar hp-bar">
+                <div class="bar-fill" id="playerHpFill"></div>
+                <!-- White overlay showing an active shield on top of current health. -->
+                <div class="shield-fill" id="playerShieldFill"></div>
+            </div>
             <div class="bar-label" id="playerHpLabel"></div>
-            <div class="bar mana-bar"><div class="bar-fill" id="playerManaFill"></div></div>
+            <div class="bar mana-bar" id="playerManaBar"><div class="bar-fill" id="playerManaFill"></div></div>
             <div class="bar-label" id="playerManaLabel"></div>
             <div class="stat-grid" id="playerStats"></div>
         </div>
@@ -86,41 +91,8 @@
 </main>
 
 <footer class="hud" id="actionPanel">
-    <div class="ability-bar" id="abilityBar">
-        <button class="ability-slot" id="attackBtn" onclick="playerAction('attack')">
-            <span class="ability-key">A</span>
-            <span class="ability-icon">⚔</span>
-            <span class="ability-name">Attack</span>
-        </button>
-        <button class="ability-slot" id="qBtn" onclick="playerAction('q')" title="Skillshot. Physical damage: 160% AD + 15% AP. A hit lowers your other cooldowns by 1.">
-            <span class="ability-key">Q</span>
-            <span class="ability-icon">✦</span>
-            <span class="ability-name">Mystic Shot</span>
-            <span class="ability-cost">30</span>
-            <span class="ability-cd"></span>
-        </button>
-        <button class="ability-slot" id="wBtn" onclick="playerAction('w')" title="Skillshot. Marks the target; your next attack or ability that hits detonates it for magic damage: 90% AP + 20% AD.">
-            <span class="ability-key">W</span>
-            <span class="ability-icon">❖</span>
-            <span class="ability-name">Essence Flux</span>
-            <span class="ability-cost">40</span>
-            <span class="ability-cd"></span>
-        </button>
-        <button class="ability-slot" id="eBtn" onclick="playerAction('e')" title="Teleport. Ignores the next attack or ability against you and fires a bolt for magic damage: 70% AP + 50% AD.">
-            <span class="ability-key">E</span>
-            <span class="ability-icon">➜</span>
-            <span class="ability-name">Arcane Shift</span>
-            <span class="ability-cost">50</span>
-            <span class="ability-cd"></span>
-        </button>
-        <button class="ability-slot" id="rBtn" onclick="playerAction('r')" title="Skillshot. Huge magic damage: 110% AP + 100% AD.">
-            <span class="ability-key">R</span>
-            <span class="ability-icon">✹</span>
-            <span class="ability-name">Trueshot</span>
-            <span class="ability-cost">100</span>
-            <span class="ability-cd"></span>
-        </button>
-    </div>
+    <!-- Filled by renderAbilityBar() from the selected champion's kit. -->
+    <div class="ability-bar" id="abilityBar"></div>
 
     <div class="inventory-bar">
         <div class="inventory-grid" id="inventoryGrid"></div>
@@ -150,5 +122,10 @@
 </div>
 
 <script src="app.js"></script>
+
+<!-- Accounts: shared across all three sites. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="auth-config.js"></script>
+<script src="auth.js"></script>
 </body>
 </html>
